@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/domain"
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 )
 
 type assetSectionsEnvelope struct {

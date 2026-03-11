@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/junghoonkye/toss-investment-cli/internal/output"
+	"github.com/junghoonkye/tossinvest-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 

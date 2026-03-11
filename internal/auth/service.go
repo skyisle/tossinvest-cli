@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
 type LoginConfig struct {

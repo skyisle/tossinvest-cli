@@ -1,0 +1,37 @@
+{
+  "scenario": "tsll_buy_insufficient_balance_after_product_ack",
+  "observedAt": "2026-03-11",
+  "stockCode": "US20220809012",
+  "market": "us",
+  "sequence": [
+    {
+      "method": "GET",
+      "path": "/api/v1/account/investment-propensity/eligible/with-contract",
+      "query": "financialQualification=USA_STOCK&highRiskTradingCategory=ETF",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/product-eligibility/overseas-leverage-etp/trading",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/prepare",
+      "status": 422
+    }
+  ],
+  "uiAlert": {
+    "title": "계좌 잔액이 부족해요",
+    "body": "구매를 위해 21,511원을 채울게요.",
+    "actions": [
+      "닫기",
+      "모바일에서 채우기"
+    ]
+  },
+  "notes": [
+    "Triggered after clicking the leveraged ETP acknowledgement button.",
+    "No pending order was created in this path.",
+    "The prepare request body has not been isolated yet."
+  ]
+}

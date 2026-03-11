@@ -1,0 +1,63 @@
+{
+  "scenario": "tsll_pending_buy_inline_cancel_after_amend",
+  "observedAt": "2026-03-11",
+  "stockCode": "US20220809012",
+  "market": "us",
+  "before": {
+    "orderNo": 14,
+    "orderPrice": 700,
+    "quantity": 1,
+    "pendingQuantity": 1,
+    "status": "체결대기"
+  },
+  "sequence": [
+    {
+      "method": "GET",
+      "path": "/api/v3/trading/order/14/available-actions",
+      "query": "stockCode=US20220809012&tradeType=buy&orderPriceType=00&fractional=false&isReservationOrder=false",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/cancel/prepare/2026-03-11/14",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v3/wts/trading/order/cancel/2026-03-11/14",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/trading/orders/histories/PENDING",
+      "status": 200
+    }
+  ],
+  "capturedBodies": {
+    "prepare": {
+      "isAfterMarketOrder": false,
+      "quantity": 1,
+      "stockCode": "US20220809012",
+      "tradeType": "buy",
+      "withOrderKey": true,
+      "isReservationOrder": false
+    },
+    "cancel": {
+      "isAfterMarketOrder": false,
+      "quantity": 1,
+      "stockCode": "US20220809012",
+      "tradeType": "buy",
+      "isReservationOrder": false
+    }
+  },
+  "after": {
+    "pendingOrdersRemaining": 0,
+    "uiMessage": "대기중인 주문이 없어요",
+    "toastMessage": "구매 주문 취소"
+  },
+  "notes": [
+    "Inline cancel is distinct from bulk cancel and uses its own prepare and mutation endpoints.",
+    "The cancel path key matched the currently visible pending order identifier after amend.",
+    "The prepare body included withOrderKey while the final cancel body omitted it."
+  ]
+}

@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/domain"
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 )
 
 type accountListEnvelope struct {
@@ -159,10 +162,70 @@ func (c *Client) ListPendingOrders(ctx context.Context) ([]domain.Order, error) 
 
 	orders := make([]domain.Order, 0, len(envelope.Result))
 	for _, item := range envelope.Result {
-		orders = append(orders, domain.Order{Raw: item})
+		orders = append(orders, parsePendingOrder(item))
 	}
 
 	return orders, nil
+}
+
+func parsePendingOrder(raw json.RawMessage) domain.Order {
+	order := domain.Order{Raw: raw}
+
+	var payload struct {
+		OrderNo         any     `json:"orderNo"`
+		OrderID         string  `json:"orderId"`
+		StockCode       string  `json:"stockCode"`
+		TradeType       string  `json:"tradeType"`
+		Status          string  `json:"status"`
+		Quantity        float64 `json:"quantity"`
+		PendingQuantity float64 `json:"pendingQuantity"`
+		OrderPrice      float64 `json:"orderPrice"`
+		CreatedAt       string  `json:"createdAt"`
+		OrderedAt       string  `json:"orderedAt"`
+	}
+
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return order
+	}
+
+	order.ID = normalizeOrderIdentifier(payload.OrderNo, payload.OrderID)
+	order.Symbol = payload.StockCode
+	order.Side = payload.TradeType
+	order.Status = payload.Status
+	order.Quantity = payload.PendingQuantity
+	if order.Quantity == 0 {
+		order.Quantity = payload.Quantity
+	}
+	order.Price = payload.OrderPrice
+	order.SubmittedAt = parseOrderTime(payload.OrderedAt, payload.CreatedAt)
+	return order
+}
+
+func normalizeOrderIdentifier(orderNo any, fallback string) string {
+	switch value := orderNo.(type) {
+	case string:
+		if value != "" {
+			return value
+		}
+	case float64:
+		return strconv.FormatInt(int64(value), 10)
+	}
+	return fallback
+}
+
+func parseOrderTime(values ...string) *time.Time {
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+			return &parsed
+		}
+		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+			return &parsed
+		}
+	}
+	return nil
 }
 
 func (c *Client) getWithdrawable(ctx context.Context, endpoint string) (map[string]any, error) {
@@ -231,5 +294,17 @@ func (c *Client) applySession(req *http.Request) {
 
 	for name, value := range c.session.Headers {
 		req.Header.Set(name, value)
+	}
+}
+
+func (c *Client) applyTradingHeaders(req *http.Request) {
+	if strings.TrimSpace(c.browserTabID) != "" {
+		req.Header.Set("Browser-Tab-Id", c.browserTabID)
+	}
+	if req.Header.Get("X-Tossinvest-Account") == "" {
+		req.Header.Set("X-Tossinvest-Account", "1")
+	}
+	if strings.TrimSpace(c.appVersion) != "" {
+		req.Header.Set("App-Version", c.appVersion)
 	}
 }

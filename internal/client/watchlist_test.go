@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
 func TestListWatchlistFromFixtures(t *testing.T) {

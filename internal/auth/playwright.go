@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
 type playwrightStorageState struct {
@@ -57,6 +57,9 @@ func (s *Service) ImportPlaywrightState(ctx context.Context, path string) (*sess
 
 	if token := sess.Cookies["XSRF-TOKEN"]; token != "" {
 		sess.Headers["X-XSRF-TOKEN"] = token
+	}
+	if browserTabID := sess.Storage["localStorage:qr-tabId"]; browserTabID != "" {
+		sess.Headers["Browser-Tab-Id"] = browserTabID
 	}
 
 	if err := s.store.Save(ctx, sess); err != nil {

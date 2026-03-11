@@ -5,11 +5,13 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/auth"
-	tossclient "github.com/junghoonkye/toss-investment-cli/internal/client"
-	"github.com/junghoonkye/toss-investment-cli/internal/config"
-	"github.com/junghoonkye/toss-investment-cli/internal/output"
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/auth"
+	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
+	"github.com/junghoonkye/tossinvest-cli/internal/config"
+	"github.com/junghoonkye/tossinvest-cli/internal/output"
+	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/trading"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +22,12 @@ type rootOptions struct {
 }
 
 type appContext struct {
-	format      output.Format
-	paths       config.Paths
-	authService *auth.Service
-	client      *tossclient.Client
+	format            output.Format
+	paths             config.Paths
+	authService       *auth.Service
+	client            *tossclient.Client
+	permissionService *permissions.Service
+	tradingService    *trading.Service
 }
 
 func newRootCmd() *cobra.Command {
@@ -31,9 +35,9 @@ func newRootCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "tossctl",
-		Short: "Read-only CLI for Toss Securities web data",
-		Long: "tossctl is a Go-first CLI scaffold for a future read-only Toss Securities " +
-			"client with browser-assisted login.",
+		Short: "CLI for Toss Securities web data and trading experiments",
+		Long: "tossctl is the CLI binary for tossinvest-cli, an unofficial Toss Securities " +
+			"web client with browser-assisted login and a narrow trading beta surface.",
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			_, err := output.ParseFormat(opts.outputFormat)
@@ -67,7 +71,7 @@ func newRootCmd() *cobra.Command {
 		newOrdersCmd(opts),
 		newWatchlistCmd(opts),
 		newQuoteCmd(opts),
-		newOrderCmd(),
+		newOrderCmd(opts),
 		newExportCmd(),
 	)
 
@@ -88,6 +92,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 	if opts.configDir != "" {
 		paths.ConfigDir = opts.configDir
 		paths.SessionFile = filepath.Join(opts.configDir, "session.json")
+		paths.PermissionFile = filepath.Join(opts.configDir, "trading-permission.json")
 	}
 
 	if opts.sessionFile != "" {
@@ -102,6 +107,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 
 	loginConfig := auth.DefaultLoginConfig(paths.CacheDir)
 	client := tossclient.New(tossclient.Config{Session: sess})
+	permissionService := permissions.NewService(paths.PermissionFile)
 
 	return &appContext{
 		format: format,
@@ -110,6 +116,8 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 			LoginConfig: loginConfig,
 			Validator:   client,
 		}),
-		client: client,
+		client:            client,
+		permissionService: permissionService,
+		tradingService:    trading.NewService(permissionService, client),
 	}, nil
 }

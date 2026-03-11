@@ -8,9 +8,10 @@ import (
 const AppName = "tossctl"
 
 type Paths struct {
-	ConfigDir   string
-	CacheDir    string
-	SessionFile string
+	ConfigDir      string
+	CacheDir       string
+	SessionFile    string
+	PermissionFile string
 }
 
 func DefaultPaths() (Paths, error) {
@@ -27,8 +28,9 @@ func DefaultPaths() (Paths, error) {
 	configDir := filepath.Join(configRoot, AppName)
 
 	return Paths{
-		ConfigDir:   configDir,
-		CacheDir:    filepath.Join(cacheRoot, AppName),
-		SessionFile: filepath.Join(configDir, "session.json"),
+		ConfigDir:      configDir,
+		CacheDir:       filepath.Join(cacheRoot, AppName),
+		SessionFile:    filepath.Join(configDir, "session.json"),
+		PermissionFile: filepath.Join(configDir, "trading-permission.json"),
 	}, nil
 }

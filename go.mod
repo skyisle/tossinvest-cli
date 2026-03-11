@@ -1,4 +1,4 @@
-module github.com/junghoonkye/toss-investment-cli
+module github.com/junghoonkye/tossinvest-cli
 
 go 1.25.0
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/domain"
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 )
 
 func WriteAccounts(w io.Writer, format Format, accounts []domain.Account, primaryKey string) error {

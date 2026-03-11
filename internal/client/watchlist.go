@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/domain"
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 )
 
 type watchlistData struct {

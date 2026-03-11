@@ -1,0 +1,49 @@
+{
+  "scenario": "tsll_buy_success_immediate_fill",
+  "observedAt": "2026-03-11",
+  "stockCode": "US20220809012",
+  "market": "us",
+  "sequence": [
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/prepare",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/create",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/trading/settings/toggle",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v2/trading/my-orders/markets/us/by-date/completed",
+      "status": 200
+    }
+  ],
+  "uiDialog": {
+    "title": "TSLL",
+    "status": "구매 완료",
+    "fields": {
+      "1주 가격": "21,208원",
+      "구매 수량": "1주",
+      "총 구매 금액": "21,208원"
+    }
+  },
+  "completedHistoryRow": "3.11 TSLL 주당 21,208원 1주 구매 완료",
+  "postTradeObservation": {
+    "pendingOrdersRemaining": 0,
+    "tsllQuantityBefore": "114.192125주",
+    "tsllQuantityAfter": "115.192125주"
+  },
+  "notes": [
+    "The successful order appears to have filled immediately.",
+    "User reported that the successful retry included a mobile balance top-up step and a browser-side FX approval prompt.",
+    "The request bodies for prepare and create were not isolated in this capture.",
+    "Completed-history fetches are required for reconciliation when no pending order remains."
+  ]
+}

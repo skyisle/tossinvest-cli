@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/domain"
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 )
 
 type quoteEnvelope[T any] struct {
@@ -40,8 +40,21 @@ type stockPriceResult struct {
 	Volume      float64 `json:"volume"`
 }
 
+type stockSearchEnvelope struct {
+	Result struct {
+		Stocks []struct {
+			StockCode string `json:"stockCode"`
+			StockName string `json:"stockName"`
+			MatchType string `json:"matchType"`
+		} `json:"stocks"`
+	} `json:"result"`
+}
+
 func (c *Client) GetQuote(ctx context.Context, symbol string) (domain.Quote, error) {
-	productCode := normalizeProductCode(symbol)
+	productCode, err := c.resolveProductCode(ctx, symbol)
+	if err != nil {
+		return domain.Quote{}, err
+	}
 
 	info, err := c.getStockInfo(ctx, productCode)
 	if err != nil {
@@ -83,6 +96,26 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (domain.Quote, err
 	}
 
 	return quote, nil
+}
+
+func (c *Client) resolveProductCode(ctx context.Context, symbol string) (string, error) {
+	normalized := normalizeProductCode(symbol)
+	if normalized == "" {
+		return "", fmt.Errorf("symbol is required")
+	}
+	if looksLikeProductCode(normalized) {
+		return normalized, nil
+	}
+
+	var envelope stockSearchEnvelope
+	body := []byte(fmt.Sprintf(`{"query":%q}`, normalized))
+	if err := c.postJSON(ctx, fmt.Sprintf("%s/api/v2/search/stocks", c.infoBaseURL), body, &envelope); err != nil {
+		return "", err
+	}
+	if len(envelope.Result.Stocks) == 0 {
+		return "", fmt.Errorf("no product code result returned for %s", normalized)
+	}
+	return envelope.Result.Stocks[0].StockCode, nil
 }
 
 func (c *Client) getStockInfo(ctx context.Context, productCode string) (stockInfoResult, error) {
@@ -139,6 +172,24 @@ func normalizeProductCode(symbol string) string {
 	}
 
 	return trimmed
+}
+
+func looksLikeProductCode(value string) bool {
+	if len(value) == 7 && value[0] == 'A' {
+		return true
+	}
+	if len(value) >= 8 && value[0] >= 'A' && value[0] <= 'Z' && value[1] >= 'A' && value[1] <= 'Z' {
+		hasDigit := false
+		for i := 2; i < len(value); i++ {
+			if value[i] >= '0' && value[i] <= '9' {
+				hasDigit = true
+				continue
+			}
+			return false
+		}
+		return hasDigit
+	}
+	return false
 }
 
 func firstNonEmpty(values ...string) string {

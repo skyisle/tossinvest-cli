@@ -1,0 +1,79 @@
+{
+  "scenario": "tsll_pending_buy_amend_600_to_700",
+  "observedAt": "2026-03-11",
+  "stockCode": "US20220809012",
+  "market": "us",
+  "before": {
+    "orderPrice": 600,
+    "quantity": 1,
+    "pendingQuantity": 1,
+    "status": "체결대기"
+  },
+  "sequence": [
+    {
+      "method": "GET",
+      "path": "/api/v3/trading/order/13/available-actions",
+      "query": "stockCode=US20220809012&tradeType=buy&orderPriceType=00&fractional=false&isReservationOrder=false",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/correct/prepare/2026-03-11/13",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/correct/2026-03-11/13",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/trading/orders/histories/PENDING",
+      "status": 200
+    }
+  ],
+  "capturedBodies": {
+    "prepare": {
+      "stockCode": "US20220809012",
+      "market": "NSQ",
+      "currencyMode": "KRW",
+      "tradeType": "buy",
+      "price": 0.4753,
+      "quantity": 1,
+      "orderAmount": 0,
+      "orderPriceType": "00",
+      "agreedOver100Million": false,
+      "max": false,
+      "isReservationOrder": false,
+      "openPriceSinglePriceYn": false,
+      "withOrderKey": true
+    },
+    "correct": {
+      "stockCode": "US20220809012",
+      "market": "NSQ",
+      "currencyMode": "KRW",
+      "tradeType": "buy",
+      "price": 0.4753,
+      "quantity": 1,
+      "orderAmount": 0,
+      "orderPriceType": "00",
+      "agreedOver100Million": false,
+      "max": false,
+      "isReservationOrder": false,
+      "openPriceSinglePriceYn": false
+    }
+  },
+  "after": {
+    "orderPrice": 700,
+    "orderUsdPrice": 0.4753,
+    "quantity": 1,
+    "pendingQuantity": 1,
+    "status": "체결대기",
+    "pendingBuyOrderAmount": 700
+  },
+  "notes": [
+    "The pending order remained open after amend and required reconciliation through pending history.",
+    "The amend path key used order identifier 13, but the later CLI-visible pending order had a different order number.",
+    "The body used market code NSQ and USD price precision even though the dialog input remained KRW."
+  ]
+}

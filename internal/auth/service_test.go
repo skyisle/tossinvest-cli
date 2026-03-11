@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
 type fakeLoginRunner struct {
@@ -46,6 +46,7 @@ func TestLoginImportsHelperStorageState(t *testing.T) {
 				"origin": "https://www.tossinvest.com",
 				"localStorage": []map[string]string{
 					{"name": "WTS-DEVICE-ID", "value": "device-123"},
+					{"name": "qr-tabId", "value": "browser-tab-login"},
 				},
 			},
 		},
@@ -81,6 +82,9 @@ func TestLoginImportsHelperStorageState(t *testing.T) {
 	}
 	if sess.Headers["X-XSRF-TOKEN"] != "xsrf-token" {
 		t.Fatalf("unexpected xsrf header: %q", sess.Headers["X-XSRF-TOKEN"])
+	}
+	if sess.Headers["Browser-Tab-Id"] != "browser-tab-login" {
+		t.Fatalf("unexpected browser-tab-id header: %q", sess.Headers["Browser-Tab-Id"])
 	}
 	if sess.Storage["localStorage:WTS-DEVICE-ID"] != "device-123" {
 		t.Fatalf("unexpected storage value: %q", sess.Storage["localStorage:WTS-DEVICE-ID"])

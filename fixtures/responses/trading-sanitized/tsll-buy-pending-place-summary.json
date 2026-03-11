@@ -1,0 +1,85 @@
+{
+  "scenario": "tsll_pending_buy_place_500",
+  "observedAt": "2026-03-11",
+  "stockCode": "US20220809012",
+  "market": "us",
+  "intent": {
+    "side": "buy",
+    "orderType": "limit",
+    "currencyMode": "KRW",
+    "price": 500,
+    "quantity": 1,
+    "fractional": false
+  },
+  "sequence": [
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/prepare",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/wts/trading/order/create",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/trading/orders/histories/all/pending",
+      "status": 200
+    }
+  ],
+  "capturedBodies": {
+    "prepare": {
+      "stockCode": "US20220809012",
+      "market": "NSQ",
+      "currencyMode": "KRW",
+      "tradeType": "buy",
+      "price": 0.3395,
+      "quantity": 1,
+      "orderAmount": 0,
+      "orderPriceType": "00",
+      "agreedOver100Million": false,
+      "marginTrading": false,
+      "max": false,
+      "allowAutoExchange": true,
+      "isReservationOrder": false,
+      "openPriceSinglePriceYn": false,
+      "withOrderKey": true
+    },
+    "create": {
+      "stockCode": "US20220809012",
+      "market": "NSQ",
+      "currencyMode": "KRW",
+      "tradeType": "buy",
+      "price": 0.3395,
+      "quantity": 1,
+      "orderAmount": 0,
+      "orderPriceType": "00",
+      "agreedOver100Million": false,
+      "marginTrading": false,
+      "max": false,
+      "allowAutoExchange": true,
+      "isReservationOrder": false,
+      "openPriceSinglePriceYn": false,
+      "extra": {
+        "close": 14.4,
+        "closeKrw": 21208,
+        "exchangeRate": 1472.8,
+        "orderMethod": "종목상세__주문하기"
+      }
+    }
+  },
+  "after": {
+    "orderNo": 16,
+    "orderPrice": 500,
+    "orderUsdPrice": 0.3395,
+    "quantity": 1,
+    "pendingQuantity": 1,
+    "status": "체결대기"
+  },
+  "notes": [
+    "This was a low-price TSLL buy that remained pending after create.",
+    "The broker payload used USD price precision while the UI input remained KRW.",
+    "The create payload included extra.close, extra.closeKrw, extra.exchangeRate, and extra.orderMethod."
+  ]
+}

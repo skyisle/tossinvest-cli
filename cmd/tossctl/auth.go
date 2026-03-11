@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/junghoonkye/toss-investment-cli/internal/auth"
-	"github.com/junghoonkye/toss-investment-cli/internal/output"
-	"github.com/junghoonkye/toss-investment-cli/internal/session"
+	"github.com/junghoonkye/tossinvest-cli/internal/auth"
+	"github.com/junghoonkye/tossinvest-cli/internal/output"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 	"github.com/spf13/cobra"
 )
 
