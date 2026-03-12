@@ -1,38 +1,107 @@
-# tossinvest-cli
+<div align="center">
+  <h1>tossinvest-cli</h1>
+  <p>토스증권 웹 세션을 재사용해 조회와 제한된 거래 기능을 터미널에서 다루기 위한 비공식 CLI입니다.</p>
+  <p>실행 바이너리는 <code>tossctl</code>입니다.</p>
+</div>
 
-[![GitHub stars](https://img.shields.io/github/stars/JungHoonGhae/tossinvest-cli)](https://github.com/JungHoonGhae/tossinvest-cli/stargazers)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://go.dev/)
-[![Status: Beta](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/JungHoonGhae/tossinvest-cli)
-[![CI](https://github.com/JungHoonGhae/tossinvest-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/JungHoonGhae/tossinvest-cli/actions/workflows/ci.yml)
+<p align="center">
+  <a href="#quick-start"><strong>Quick Start</strong></a> ·
+  <a href="#지원-범위"><strong>지원 범위</strong></a> ·
+  <a href="#명령-표면"><strong>명령 표면</strong></a> ·
+  <a href="#faq"><strong>FAQ</strong></a> ·
+  <a href="#문서"><strong>문서</strong></a>
+</p>
 
-토스증권 웹 세션을 재사용해 조회와 제한된 거래 기능을 터미널에서 다루기 위한 비공식 CLI입니다. 실행 바이너리는 `tossctl`입니다.
+<p align="center">
+  <a href="https://github.com/JungHoonGhae/tossinvest-cli/stargazers"><img src="https://img.shields.io/github/stars/JungHoonGhae/tossinvest-cli" alt="GitHub stars" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8.svg" alt="Go" /></a>
+  <a href="https://github.com/JungHoonGhae/tossinvest-cli"><img src="https://img.shields.io/badge/status-beta-orange.svg" alt="Status Beta" /></a>
+  <a href="https://github.com/JungHoonGhae/tossinvest-cli/actions/workflows/ci.yml"><img src="https://github.com/JungHoonGhae/tossinvest-cli/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+</p>
 
-> **주의**: 이 프로젝트는 토스증권 공식 제품이 아닙니다. 웹 내부 API는 예고 없이 바뀔 수 있고, 잘못 쓰면 실제 계좌에 영향을 줄 수 있습니다.
+> [!WARNING]
+> 이 프로젝트는 토스증권 공식 제품이 아닙니다. 웹 내부 API는 예고 없이 바뀔 수 있고, 잘못 쓰면 실제 계좌에 영향을 줄 수 있습니다.
 
-## 개요
+> [!IMPORTANT]
+> 현재 거래 기능은 베타 단계입니다. 실거래에 쓰기 전에 지원 범위와 안전장치를 먼저 확인하는 것이 좋습니다.
 
-이 프로젝트는 아래 같은 작업을 CLI에서 다루는 것을 목표로 합니다.
+<div align="center">
+<table>
+  <tr>
+    <td align="center"><strong>Works with</strong></td>
+    <td align="center"><img src="docs/assets/logos/openclaw.svg" width="32" alt="OpenClaw" /><br /><sub>OpenClaw</sub></td>
+    <td align="center"><img src="docs/assets/logos/claude.svg" width="32" alt="Claude Code" /><br /><sub>Claude Code</sub></td>
+    <td align="center"><img src="docs/assets/logos/codex.svg" width="32" alt="Codex" /><br /><sub>Codex</sub></td>
+    <td align="center"><img src="docs/assets/logos/cursor.svg" width="32" alt="Cursor" /><br /><sub>Cursor</sub></td>
+    <td align="center"><img src="docs/assets/logos/bash.svg" width="32" alt="Bash" /><br /><sub>Bash</sub></td>
+    <td align="center"><img src="docs/assets/logos/http.svg" width="32" alt="HTTP" /><br /><sub>HTTP</sub></td>
+  </tr>
+</table>
+</div>
 
-- 계좌 상태를 읽기
-- 시세와 미체결 주문을 확인하기
-- 조건이 맞으면 주문을 준비하거나 실행하기
-- 결과를 다른 시스템으로 넘기기
+## Quick Start
 
-현재는 조회 기능과 제한된 거래 베타 범위를 중심으로 구현되어 있습니다.
+### For Human
 
-## 주요 용도
+```bash
+brew tap JungHoonGhae/tossinvest-cli
+brew install tossctl
 
-예를 들면 이런 용도에 잘 맞습니다.
+tossctl version
+tossctl doctor
+tossctl auth doctor
+tossctl auth login
+tossctl account summary --output json
+```
 
-- 자산 현황을 스크립트에서 주기적으로 확인하기
-- 미체결 주문과 시세를 `json`으로 뽑아 다른 시스템에 넘기기
-- 조건 계산과 실제 실행 단계를 분리하기
-- 자동화 도구가 토스증권 작업을 명령 단위로 호출하기
+`auth login`까지 쓰려면 Homebrew Python에 Playwright와 Chromium을 준비해야 합니다.
 
-## 현재 상태
+```bash
+PY="$(brew --prefix python@3.11)/bin/python3.11"
+"$PY" -m pip install playwright
+"$PY" -m playwright install chromium
+```
 
-지금 바로 되는 것:
+### For Agent
+
+```text
+Install tossinvest-cli with Homebrew, run `tossctl doctor` and `tossctl auth doctor`,
+complete browser login with `tossctl auth login`, then use read-only commands first.
+Only use `tossctl order preview` before any trading mutation.
+```
+
+## tossinvest-cli란
+
+`tossinvest-cli`는 토스증권 웹 세션을 재사용해 아래 작업을 CLI에서 다룰 수 있게 만든 도구입니다.
+
+- 계좌 상태 읽기
+- 시세와 미체결 주문 확인
+- 주문 전 확인
+- 제한된 범위의 주문 실행
+- 다른 자동화 흐름으로 결과 전달
+
+현재는 조회 기능과 좁은 거래 베타 범위를 중심으로 구현되어 있습니다.
+
+## 이런 경우에 잘 맞습니다
+
+- 자산 현황을 스크립트에서 주기적으로 확인하고 싶을 때
+- 미체결 주문과 시세를 `json`으로 뽑아 다른 시스템에 넘기고 싶을 때
+- 조건 계산과 실제 실행 단계를 분리하고 싶을 때
+- 자동화 도구가 토스증권 작업을 명령 단위로 호출할 수 있게 만들고 싶을 때
+
+## 어떤 문제를 줄여주는가
+
+| 직접 웹에서 할 때 | `tossinvest-cli`를 쓰면 |
+|---|---|
+| 계좌, 시세, 미체결 주문을 반복해서 열어 봐야 한다 | 조회 명령을 스크립트와 터미널에서 바로 호출할 수 있다 |
+| 데이터를 다른 도구로 넘기기 어렵다 | `json` 출력으로 후속 자동화에 연결할 수 있다 |
+| 주문 전 확인과 실제 실행을 한 흐름에서 섞기 쉽다 | `preview`와 실행 단계를 분리할 수 있다 |
+| 브라우저 세션이 살아 있어도 자동화 경로가 없다 | 웹 세션을 재사용하는 CLI 흐름을 만들 수 있다 |
+
+## 지원 범위
+
+### 지금 바로 되는 것
 
 - 브라우저 로그인 기반 세션 저장과 재사용
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
@@ -45,21 +114,29 @@
 - 당일 미체결 주문 취소
 - 거래 분석 문서와 민감정보를 정리한 fixture 관리
 
-아직 더 필요한 것:
+### live 검증이 끝난 범위
+
+- `order preview`
+- `order place` for `US buy limit / KRW / non-fractional`
+- `order cancel` for same-day pending orders
+
+### 아직 더 필요한 것
 
 - `order amend` 재검증
 - 즉시 체결 주문 확인 흐름 강화
 - `매도`, `시장가`, `국내주식`, `소수점 주문`
 
-## 요구 사항
+## 이 프로젝트가 하지 않는 것
 
-| Requirement | Notes |
-|-------------|-------|
-| Go | `>= 1.25` |
-| Python | `>= 3.11` |
-| Playwright Chromium | `auth login`에 필요 |
+| 하지 않는 것 | 설명 |
+|---|---|
+| 공식 API SDK 제공 | 토스증권 공식 API나 공식 지원 SDK를 제공하는 프로젝트가 아닙니다. |
+| 범용 트레이딩 클라이언트 | 모든 주문 유형과 시장을 완전히 지원하지 않습니다. |
+| 무제한 자동 매매 | 안전장치 없이 바로 실행되는 자동 매매 도구를 목표로 하지 않습니다. |
 
 ## 설치
+
+### Homebrew
 
 macOS에서는 Homebrew 설치를 기본 경로로 생각하고 있습니다.
 
@@ -76,15 +153,7 @@ tossctl doctor
 tossctl auth doctor
 ```
 
-`auth login`까지 쓰려면 Homebrew Python에 Playwright와 Chromium을 준비해야 합니다.
-
-```bash
-PY="$(brew --prefix python@3.11)/bin/python3.11"
-"$PY" -m pip install playwright
-"$PY" -m playwright install chromium
-```
-
-소스에서 직접 빌드하려면:
+### From source
 
 ```bash
 git clone https://github.com/JungHoonGhae/tossinvest-cli.git
@@ -96,22 +165,9 @@ python3 -m pip install -e .
 python3 -m playwright install chromium
 ```
 
-## 빠른 시작
-
-```bash
-tossctl version
-tossctl doctor
-tossctl auth doctor
-tossctl auth login
-tossctl auth status
-tossctl quote get TSLL --output json
-tossctl account summary --output json
-tossctl orders list --output json
-```
-
 ## 명령 표면
 
-조회:
+### 조회
 
 ```bash
 tossctl version
@@ -131,7 +187,7 @@ tossctl watchlist list
 tossctl quote get <symbol>
 ```
 
-거래:
+### 거래
 
 ```bash
 tossctl order preview
@@ -142,16 +198,6 @@ tossctl order permissions status
 tossctl order permissions grant --ttl 300
 tossctl order permissions revoke
 ```
-
-현재 live 검증이 끝난 범위:
-
-- `order preview`
-- `order place` for `US buy limit / KRW / non-fractional`
-- `order cancel` for same-day pending orders
-
-아직 베타로 봐야 하는 범위:
-
-- `order amend`
 
 ## 주문 예시
 
@@ -188,14 +234,7 @@ tossctl orders list --output json
 
 ## 거래 안전장치
 
-금융 자동화는 다른 앱 자동화와 다릅니다.
-
-- 비공식 API라서 언제든 깨질 수 있음
-- 잘못된 판단이 바로 실계좌로 이어질 수 있음
-- 환전, 추가 인증, 상품 위험고지 같은 분기가 자동화를 흔들 수 있음
-- 조회 자동화보다 주문 자동화의 사고 비용이 훨씬 큼
-
-그래서 이 프로젝트는 일부러 몇 단계 확인을 남겨두고 있습니다.
+거래 기능은 기본적으로 여러 단계 확인을 거치게 되어 있습니다.
 
 - `order preview`
 - `order permissions grant`
@@ -203,7 +242,7 @@ tossctl orders list --output json
 - `--dangerously-skip-permissions`
 - `--confirm`
 
-금융에서는 편의성보다 오작동 방지가 먼저입니다.
+금융 자동화에서는 편의성보다 오작동 방지가 먼저라고 보고 있습니다.
 
 ## 개발
 
@@ -215,6 +254,20 @@ make test
 ```
 
 `auth-helper`는 브라우저 로그인만 담당합니다. 토스증권 도메인 로직은 Go CLI 쪽에 남겨두고, 브라우저 자동화는 분리해 유지합니다.
+
+## FAQ
+
+**누가 쓰기 좋은가요?**  
+토스증권 조회를 스크립트에 넣고 싶거나, 주문 전 확인과 제한된 주문 흐름을 CLI로 다루고 싶은 사용자에게 맞습니다.
+
+**바로 주문까지 가능한가요?**  
+일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`와 당일 pending `cancel`입니다.
+
+**공식 API인가요?**  
+아닙니다. 토스증권 공식 제품이 아니고, 웹 내부 API를 재사용하는 비공식 프로젝트입니다.
+
+**왜 Playwright가 필요한가요?**  
+로그인 세션을 브라우저 흐름으로 확보하기 위해 필요합니다. 실제 조회와 거래 로직은 Go CLI 쪽에 구현되어 있습니다.
 
 ## 문서
 
@@ -234,6 +287,10 @@ make test
 - `--config-dir`
 - `--session-file`
 
+## Contributing
+
+버그 제보와 PR은 환영합니다.
+
 ## Support
 
 도움이 되었다면 유지보수에 힘을 보태 주세요.
@@ -241,10 +298,6 @@ make test
 <a href="https://www.buymeacoffee.com/lucas.ghae">
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
 </a>
-
-## Contributing
-
-버그 제보와 PR은 환영합니다.
 
 ## License
 
