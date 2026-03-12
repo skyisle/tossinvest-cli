@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
+	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 	"github.com/junghoonkye/tossinvest-cli/internal/trading"
 )
@@ -50,4 +51,20 @@ func userFacingCommandError(err error) error {
 	}
 
 	return err
+}
+
+func userFacingTradingError(paths config.Paths, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var disabled *trading.DisabledActionError
+	if errors.As(err, &disabled) {
+		return fmt.Errorf("trading action `%s` is disabled; run `tossctl config init` if needed and update %s", disabled.Action, paths.ConfigFile)
+	}
+	if errors.Is(err, trading.ErrDangerousExecuteDisabled) {
+		return fmt.Errorf("dangerous execute is disabled; set `trading.allow_dangerous_execute=true` in %s", paths.ConfigFile)
+	}
+
+	return userFacingCommandError(err)
 }

@@ -24,7 +24,7 @@
 > 이 프로젝트는 토스증권 공식 제품이 아닙니다. 웹 내부 API는 예고 없이 바뀔 수 있고, 잘못 쓰면 실제 계좌에 영향을 줄 수 있습니다.
 
 > [!IMPORTANT]
-> 현재 거래 기능은 베타 단계입니다. 실거래에 쓰기 전에 지원 범위와 안전장치를 먼저 확인하는 것이 좋습니다.
+> 현재 거래 기능은 베타 단계입니다. 설치 직후에는 모든 거래 기능이 기본적으로 꺼져 있고, 사용자가 `config.json`에서 기능별로 직접 허용해야만 실행할 수 있습니다.
 
 <div align="center">
 <table>
@@ -50,6 +50,7 @@ brew install tossctl
 
 tossctl version
 tossctl doctor
+tossctl config show
 tossctl auth doctor
 tossctl auth login
 tossctl account summary --output json
@@ -68,6 +69,7 @@ PY="$(brew --prefix python@3.11)/bin/python3.11"
 ```text
 Install tossinvest-cli with Homebrew, run `tossctl doctor` and `tossctl auth doctor`,
 complete browser login with `tossctl auth login`, then use read-only commands first.
+Trading actions stay disabled until config.json explicitly allows them.
 Only use `tossctl order preview` before any trading mutation.
 ```
 
@@ -98,6 +100,33 @@ Only use `tossctl order preview` before any trading mutation.
 | 데이터를 다른 도구로 넘기기 어렵다 | `json` 출력으로 후속 자동화에 연결할 수 있다 |
 | 주문 전 확인과 실제 실행을 한 흐름에서 섞기 쉽다 | `preview`와 실행 단계를 분리할 수 있다 |
 | 브라우저 세션이 살아 있어도 자동화 경로가 없다 | 웹 세션을 재사용하는 CLI 흐름을 만들 수 있다 |
+
+## Config
+
+기본 설정 파일 경로는 `<config dir>/config.json`입니다. 파일이 없어도 CLI는 동작하지만, 이 경우 거래 기능은 모두 비활성 상태로 동작합니다.
+
+```bash
+tossctl config init
+tossctl config show
+```
+
+생성되는 기본 설정은 아래와 같습니다.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/schemas/config.schema.json",
+  "schema_version": 1,
+  "trading": {
+    "grant": false,
+    "place": false,
+    "cancel": false,
+    "amend": false,
+    "allow_dangerous_execute": false
+  }
+}
+```
+
+`grant`, `place`, `cancel`, `amend`는 기능별 허용 여부이고, `allow_dangerous_execute`는 `--dangerously-skip-permissions` 자체를 쓸 수 있는지 정합니다.
 
 ## 지원 범위
 
@@ -150,6 +179,7 @@ brew install tossctl
 ```bash
 tossctl version
 tossctl doctor
+tossctl config show
 tossctl auth doctor
 ```
 
@@ -172,6 +202,7 @@ python3 -m playwright install chromium
 ```bash
 tossctl version
 tossctl doctor
+tossctl config show
 
 tossctl auth login
 tossctl auth doctor
@@ -191,6 +222,8 @@ tossctl quote get <symbol>
 
 ```bash
 tossctl order preview
+tossctl config init
+tossctl config show
 tossctl order place
 tossctl order cancel
 tossctl order amend
@@ -204,6 +237,9 @@ tossctl order permissions revoke
 아래는 `TSLL` 1주를 `500원` 지정가로 미리보기한 뒤 실제 주문하는 흐름입니다.
 
 ```bash
+tossctl config init
+# edit config.json and set trading.grant/place/allow_dangerous_execute to true
+
 tossctl order preview \
   --symbol TSLL \
   --market us \
@@ -236,6 +272,7 @@ tossctl orders list --output json
 
 거래 기능은 기본적으로 여러 단계 확인을 거치게 되어 있습니다.
 
+- `config.json`에서 기능별 허용
 - `order preview`
 - `order permissions grant`
 - `--execute`
@@ -261,7 +298,7 @@ make test
 토스증권 조회를 스크립트에 넣고 싶거나, 주문 전 확인과 제한된 주문 흐름을 CLI로 다루고 싶은 사용자에게 맞습니다.
 
 **바로 주문까지 가능한가요?**  
-일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`와 당일 pending `cancel`입니다.
+일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`와 당일 pending `cancel`입니다. 그리고 거래 기능은 먼저 `config.json`에서 해당 액션을 직접 허용해야 합니다.
 
 **공식 API인가요?**  
 아닙니다. 토스증권 공식 제품이 아니고, 웹 내부 API를 재사용하는 비공식 프로젝트입니다.
@@ -271,6 +308,7 @@ make test
 
 ## 문서
 
+- [`docs/configuration.md`](docs/configuration.md)
 - [`docs/reverse-engineering/`](docs/reverse-engineering/)
 - [`docs/trading/`](docs/trading/)
 - [`auth-helper/README.md`](auth-helper/README.md)
@@ -278,6 +316,7 @@ make test
 ## 로컬 저장 경로
 
 - config dir: `$(os.UserConfigDir)/tossctl`
+- config file: `<config dir>/config.json`
 - cache dir: `$(os.UserCacheDir)/tossctl`
 - session file: `<config dir>/session.json`
 - permission file: `<config dir>/trading-permission.json`

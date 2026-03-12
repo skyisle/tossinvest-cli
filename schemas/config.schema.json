@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/schemas/config.schema.json",
+  "title": "tossinvest-cli config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "trading": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grant": {
+          "type": "boolean",
+          "default": false
+        },
+        "place": {
+          "type": "boolean",
+          "default": false
+        },
+        "cancel": {
+          "type": "boolean",
+          "default": false
+        },
+        "amend": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_dangerous_execute": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "grant",
+        "place",
+        "cancel",
+        "amend",
+        "allow_dangerous_execute"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "trading"
+  ]
+}

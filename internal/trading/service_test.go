@@ -7,16 +7,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/orderintent"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 )
 
 type brokerStub struct {
-	placeCalled  bool
-	cancelCalled bool
-	amendCalled  bool
-	stillPending bool
-	lastOrderID  string
+	placeCalled     bool
+	cancelCalled    bool
+	amendCalled     bool
+	stillPending    bool
+	lastOrderID     string
 	pendingSequence []bool
 	pendingChecks   int
 }
@@ -63,7 +64,10 @@ func TestPlaceRequiresExecutionFlagsAndGrant(t *testing.T) {
 		t.Fatalf("Grant returned error: %v", err)
 	}
 
-	service := NewService(permissionService, nil)
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		AllowDangerousExecute: true,
+	}, nil)
 	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
 		Symbol:       "TSLL",
 		Market:       "us",
@@ -107,7 +111,10 @@ func TestPlaceCallsBrokerForSupportedIntent(t *testing.T) {
 	}
 
 	broker := &brokerStub{}
-	service := NewService(permissionService, broker)
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		AllowDangerousExecute: true,
+	}, broker)
 	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
 		Symbol:       "TSLL",
 		Market:       "us",
@@ -141,7 +148,10 @@ func TestCancelExecutesBrokerAndReconciles(t *testing.T) {
 	}
 
 	broker := &brokerStub{}
-	service := NewService(permissionService, broker)
+	service := NewService(permissionService, config.Trading{
+		Cancel:                true,
+		AllowDangerousExecute: true,
+	}, broker)
 
 	intent, err := orderintent.NormalizeCancel("5", "TSLL")
 	if err != nil {
@@ -180,7 +190,10 @@ func TestCancelWaitsForPendingOrderToDisappear(t *testing.T) {
 	}()
 
 	broker := &brokerStub{pendingSequence: []bool{true, true, false}}
-	service := NewService(permissionService, broker)
+	service := NewService(permissionService, config.Trading{
+		Cancel:                true,
+		AllowDangerousExecute: true,
+	}, broker)
 	intent, err := orderintent.NormalizeCancel("5", "TSLL")
 	if err != nil {
 		t.Fatalf("NormalizeCancel returned error: %v", err)
@@ -207,7 +220,10 @@ func TestCancelFailsWhenOrderStillPending(t *testing.T) {
 	}
 
 	broker := &brokerStub{stillPending: true}
-	service := NewService(permissionService, broker)
+	service := NewService(permissionService, config.Trading{
+		Cancel:                true,
+		AllowDangerousExecute: true,
+	}, broker)
 	previousAttempts := cancelReconcileAttempts
 	previousInterval := cancelReconcileInterval
 	cancelReconcileAttempts = 3
@@ -242,7 +258,10 @@ func TestAmendCallsBrokerAfterGate(t *testing.T) {
 	}
 
 	broker := &brokerStub{}
-	service := NewService(permissionService, broker)
+	service := NewService(permissionService, config.Trading{
+		Amend:                 true,
+		AllowDangerousExecute: true,
+	}, broker)
 	price := 700.0
 	intent, err := orderintent.NormalizeAmend("13", nil, &price)
 	if err != nil {
@@ -259,5 +278,72 @@ func TestAmendCallsBrokerAfterGate(t *testing.T) {
 	}
 	if !broker.amendCalled {
 		t.Fatal("expected broker amend to be called")
+	}
+}
+
+func TestPlaceFailsWhenActionDisabledInConfig(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
+		t.Fatalf("Grant returned error: %v", err)
+	}
+
+	service := NewService(permissionService, config.Trading{
+		AllowDangerousExecute: true,
+	}, nil)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "TSLL",
+		Market:       "us",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        500,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	err = service.Place(context.Background(), intent, ExecuteOptions{
+		Execute:                    true,
+		DangerouslySkipPermissions: true,
+		Confirm:                    service.PreviewPlace(intent).ConfirmToken,
+	})
+	var disabled *DisabledActionError
+	if !errors.As(err, &disabled) || disabled.Action != ActionPlace {
+		t.Fatalf("expected place action to be disabled, got %v", err)
+	}
+}
+
+func TestPlaceFailsWhenDangerousExecuteIsDisabledInConfig(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
+		t.Fatalf("Grant returned error: %v", err)
+	}
+
+	service := NewService(permissionService, config.Trading{
+		Place: true,
+	}, nil)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "TSLL",
+		Market:       "us",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        500,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	err = service.Place(context.Background(), intent, ExecuteOptions{
+		Execute:                    true,
+		DangerouslySkipPermissions: true,
+		Confirm:                    service.PreviewPlace(intent).ConfirmToken,
+	})
+	if !errors.Is(err, ErrDangerousExecuteDisabled) {
+		t.Fatalf("expected ErrDangerousExecuteDisabled, got %v", err)
 	}
 }

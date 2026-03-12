@@ -120,7 +120,7 @@ func newOrderPlaceCmd(opts *rootOptions) *cobra.Command {
 				Confirm:                    exec.confirm,
 			})
 			if err != nil {
-				return userFacingCommandError(err)
+				return userFacingTradingError(app.paths, err)
 			}
 
 			return writeTradingMutationResult(cmd, app.format, "place", map[string]any{
@@ -168,7 +168,7 @@ func newOrderCancelCmd(opts *rootOptions) *cobra.Command {
 				Confirm:                    exec.confirm,
 			})
 			if err != nil {
-				return userFacingCommandError(err)
+				return userFacingTradingError(app.paths, err)
 			}
 
 			return writeTradingMutationResult(cmd, app.format, "cancel", map[string]any{
@@ -220,7 +220,7 @@ func newOrderAmendCmd(opts *rootOptions) *cobra.Command {
 				Confirm:                    exec.confirm,
 			})
 			if err != nil {
-				return userFacingCommandError(err)
+				return userFacingTradingError(app.paths, err)
 			}
 
 			payload := map[string]any{
@@ -265,10 +265,13 @@ func newOrderPermissionsCmd(opts *rootOptions) *cobra.Command {
 			if ttlSeconds <= 0 {
 				return fmt.Errorf("ttl must be greater than zero seconds")
 			}
+			if err := app.tradingService.GrantEnabled(); err != nil {
+				return userFacingTradingError(app.paths, err)
+			}
 
 			status, err := app.permissionService.Grant(cmd.Context(), time.Duration(ttlSeconds)*time.Second)
 			if err != nil {
-				return err
+				return userFacingTradingError(app.paths, err)
 			}
 
 			return output.WritePermissionStatus(cmd.OutOrStdout(), app.format, status)

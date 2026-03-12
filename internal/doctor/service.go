@@ -44,6 +44,7 @@ type Report struct {
 	OS         string             `json:"os"`
 	Arch       string             `json:"arch"`
 	Paths      config.Paths       `json:"paths"`
+	Config     config.Status      `json:"config"`
 	Permission permissions.Status `json:"permission"`
 	Auth       AuthReport         `json:"auth"`
 	Checks     []Check            `json:"checks"`
@@ -59,14 +60,16 @@ type permissionStatusReader interface {
 
 type Service struct {
 	paths       config.Paths
+	configState config.Status
 	loginConfig auth.LoginConfig
 	authService authStatusReader
 	permService permissionStatusReader
 }
 
-func NewService(paths config.Paths, loginConfig auth.LoginConfig, authService authStatusReader, permService permissionStatusReader) *Service {
+func NewService(paths config.Paths, configState config.Status, loginConfig auth.LoginConfig, authService authStatusReader, permService permissionStatusReader) *Service {
 	return &Service{
 		paths:       paths,
+		configState: configState,
 		loginConfig: loginConfig,
 		authService: authService,
 		permService: permService,
@@ -87,8 +90,10 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 	checks := []Check{
 		checkPath("config_dir", s.paths.ConfigDir),
 		checkPath("cache_dir", s.paths.CacheDir),
+		checkFile("config_file", s.paths.ConfigFile),
 		checkFile("session_file", s.paths.SessionFile),
 		checkFile("permission_file", s.paths.PermissionFile),
+		checkTradingConfig(s.configState),
 		checkPermission(permissionStatus),
 		{
 			Name:    "trading_scope",
@@ -104,6 +109,7 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 		OS:         runtime.GOOS,
 		Arch:       runtime.GOARCH,
 		Paths:      s.paths,
+		Config:     s.configState,
 		Permission: permissionStatus,
 		Auth:       authReport,
 		Checks:     checks,
@@ -319,5 +325,45 @@ func checkPermission(status permissions.Status) Check {
 		return Check{Name: "trading_permission", Status: CheckInfo, Summary: "temporary trading permission has expired"}
 	default:
 		return Check{Name: "trading_permission", Status: CheckInfo, Summary: "no active trading permission grant"}
+	}
+}
+
+func checkTradingConfig(status config.Status) Check {
+	if !status.Exists {
+		return Check{
+			Name:    "trading_config",
+			Status:  CheckInfo,
+			Summary: "config file does not exist yet; trading actions default to disabled",
+			Detail:  "Run `tossctl config init` to create config.json and enable only the actions you want.",
+		}
+	}
+
+	enabled := []string{}
+	if status.Trading.Grant {
+		enabled = append(enabled, "grant")
+	}
+	if status.Trading.Place {
+		enabled = append(enabled, "place")
+	}
+	if status.Trading.Cancel {
+		enabled = append(enabled, "cancel")
+	}
+	if status.Trading.Amend {
+		enabled = append(enabled, "amend")
+	}
+	if len(enabled) == 0 {
+		return Check{
+			Name:    "trading_config",
+			Status:  CheckInfo,
+			Summary: "config file exists, but all trading actions are disabled",
+			Detail:  "Edit config.json to explicitly allow the actions you want to use.",
+		}
+	}
+
+	return Check{
+		Name:    "trading_config",
+		Status:  CheckOK,
+		Summary: "one or more trading actions are enabled in config",
+		Detail:  strings.Join(enabled, ", "),
 	}
 }

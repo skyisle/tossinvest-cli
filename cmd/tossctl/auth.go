@@ -96,9 +96,14 @@ func newAuthCmd(opts *rootOptions) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				configStatus, err := app.configService.Status(cmd.Context())
+				if err != nil {
+					return err
+				}
 
 				report, err := doctor.NewService(
 					app.paths,
+					configStatus,
 					app.loginConfig,
 					app.authService,
 					app.permissionService,

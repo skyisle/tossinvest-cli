@@ -19,7 +19,7 @@ func WriteDoctorReport(w io.Writer, format Format, report doctor.Report) error {
 	case FormatTable:
 		if _, err := fmt.Fprintf(
 			w,
-			"Version: %s\nCommit: %s\nDate: %s\nGo: %s\nOS/Arch: %s/%s\nConfig Dir: %s\nCache Dir: %s\nSession File: %s\nPermission File: %s\n",
+			"Version: %s\nCommit: %s\nDate: %s\nGo: %s\nOS/Arch: %s/%s\nConfig Dir: %s\nCache Dir: %s\nConfig File: %s\nSession File: %s\nPermission File: %s\n",
 			report.Version.Version,
 			report.Version.Commit,
 			emptyFallback(report.Version.Date, "n/a"),
@@ -28,6 +28,7 @@ func WriteDoctorReport(w io.Writer, format Format, report doctor.Report) error {
 			report.Arch,
 			report.Paths.ConfigDir,
 			report.Paths.CacheDir,
+			report.Paths.ConfigFile,
 			report.Paths.SessionFile,
 			report.Paths.PermissionFile,
 		); err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/orderintent"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 )
@@ -35,6 +36,7 @@ type ExecuteOptions struct {
 
 type Service struct {
 	permissions *permissions.Service
+	policy      config.Trading
 	broker      Broker
 }
 
@@ -43,9 +45,10 @@ var (
 	cancelReconcileInterval = 250 * time.Millisecond
 )
 
-func NewService(permissionService *permissions.Service, broker Broker) *Service {
+func NewService(permissionService *permissions.Service, policy config.Trading, broker Broker) *Service {
 	return &Service{
 		permissions: permissionService,
+		policy:      policy,
 		broker:      broker,
 	}
 }
@@ -57,45 +60,65 @@ func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 		"US orders may still require funding, FX consent, or product-risk acknowledgement before submission.",
 	}
 	liveReady := placeIntentSupported(intent)
+	if !s.policy.Place {
+		warnings = append(warnings, "Config currently disables `order place`.")
+	}
+	if !s.policy.AllowDangerousExecute {
+		warnings = append(warnings, "Config currently disables dangerous live execution.")
+	}
 	return Preview{
 		Kind:          "place",
 		Canonical:     canonical,
 		ConfirmToken:  orderintent.ConfirmToken(canonical),
 		Warnings:      warnings,
 		LiveReady:     liveReady,
-		MutationReady: liveReady,
+		MutationReady: liveReady && s.policy.Place && s.policy.AllowDangerousExecute,
 	}
 }
 
 func (s *Service) PreviewCancel(intent orderintent.CancelIntent) Preview {
 	canonical := orderintent.CanonicalCancel(intent)
+	warnings := []string{"Single-order cancel is wired for same-day pending orders and still reconciles through pending history."}
+	if !s.policy.Cancel {
+		warnings = append(warnings, "Config currently disables `order cancel`.")
+	}
+	if !s.policy.AllowDangerousExecute {
+		warnings = append(warnings, "Config currently disables dangerous live execution.")
+	}
 	return Preview{
 		Kind:          "cancel",
 		Canonical:     canonical,
 		ConfirmToken:  orderintent.ConfirmToken(canonical),
-		Warnings:      []string{"Single-order cancel is wired for same-day pending orders and still reconciles through pending history."},
+		Warnings:      warnings,
 		LiveReady:     true,
-		MutationReady: true,
+		MutationReady: s.policy.Cancel && s.policy.AllowDangerousExecute,
 	}
 }
 
 func (s *Service) PreviewAmend(intent orderintent.AmendIntent) Preview {
 	canonical := orderintent.CanonicalAmend(intent)
+	warnings := []string{
+		"Amend reconciles against the surviving pending order record after mutation.",
+		"Request bodies for amend are still under active discovery.",
+	}
+	if !s.policy.Amend {
+		warnings = append(warnings, "Config currently disables `order amend`.")
+	}
+	if !s.policy.AllowDangerousExecute {
+		warnings = append(warnings, "Config currently disables dangerous live execution.")
+	}
 	return Preview{
-		Kind:         "amend",
-		Canonical:    canonical,
-		ConfirmToken: orderintent.ConfirmToken(canonical),
-		Warnings: []string{
-			"Amend reconciles against the surviving pending order record after mutation.",
-			"Request bodies for amend are still under active discovery.",
-		},
+		Kind:          "amend",
+		Canonical:     canonical,
+		ConfirmToken:  orderintent.ConfirmToken(canonical),
+		Warnings:      warnings,
 		LiveReady:     false,
 		MutationReady: false,
 	}
 }
 
 func (s *Service) Place(ctx context.Context, intent orderintent.PlaceIntent, opts ExecuteOptions) error {
-	if err := s.guard(ctx, s.PreviewPlace(intent), opts); err != nil {
+	if err := s.guard(ctx, ActionPlace, s.PreviewPlace(intent), opts); err != nil {
 		return err
 	}
 	if !placeIntentSupported(intent) {
@@ -108,7 +131,7 @@ func (s *Service) Place(ctx context.Context, intent orderintent.PlaceIntent, opt
 }
 
 func (s *Service) Cancel(ctx context.Context, intent orderintent.CancelIntent, opts ExecuteOptions) error {
-	if err := s.guard(ctx, s.PreviewCancel(intent), opts); err != nil {
+	if err := s.guard(ctx, ActionCancel, s.PreviewCancel(intent), opts); err != nil {
 		return err
 	}
 	if s.broker == nil {
@@ -126,7 +149,7 @@ func (s *Service) Cancel(ctx context.Context, intent orderintent.CancelIntent, o
 }
 
 func (s *Service) Amend(ctx context.Context, intent orderintent.AmendIntent, opts ExecuteOptions) error {
-	if err := s.guard(ctx, s.PreviewAmend(intent), opts); err != nil {
+	if err := s.guard(ctx, ActionAmend, s.PreviewAmend(intent), opts); err != nil {
 		return err
 	}
 	if s.broker == nil {
@@ -135,9 +158,19 @@ func (s *Service) Amend(ctx context.Context, intent orderintent.AmendIntent, opt
 	return s.broker.AmendPendingOrder(ctx, intent)
 }
 
-func (s *Service) guard(ctx context.Context, preview Preview, opts ExecuteOptions) error {
+func (s *Service) GrantEnabled() error {
+	return s.requireActionEnabled(ActionGrant)
+}
+
+func (s *Service) guard(ctx context.Context, action Action, preview Preview, opts ExecuteOptions) error {
+	if err := s.requireActionEnabled(action); err != nil {
+		return err
+	}
 	if !opts.Execute {
 		return fmt.Errorf("%w; rerun with --execute after reviewing `tossctl order preview`", ErrExecuteRequired)
+	}
+	if !s.policy.AllowDangerousExecute {
+		return ErrDangerousExecuteDisabled
 	}
 	if !opts.DangerouslySkipPermissions {
 		return fmt.Errorf("%w; explicit danger acknowledgement is required", ErrDangerousFlagRequired)
@@ -149,6 +182,24 @@ func (s *Service) guard(ctx context.Context, preview Preview, opts ExecuteOption
 		return ErrConfirmMismatch
 	}
 	return nil
+}
+
+func (s *Service) requireActionEnabled(action Action) error {
+	enabled := false
+	switch action {
+	case ActionGrant:
+		enabled = s.policy.Grant
+	case ActionPlace:
+		enabled = s.policy.Place
+	case ActionCancel:
+		enabled = s.policy.Cancel
+	case ActionAmend:
+		enabled = s.policy.Amend
+	}
+	if enabled {
+		return nil
+	}
+	return &DisabledActionError{Action: action}
 }
 
 func placeIntentSupported(intent orderintent.PlaceIntent) bool {

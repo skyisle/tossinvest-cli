@@ -33,7 +33,15 @@ func WriteTradingPreview(w io.Writer, format Format, preview trading.Preview) er
 		writer.Flush()
 		return writer.Error()
 	case FormatTable:
-		if _, err := fmt.Fprintf(w, "Kind: %s\nConfirm Token: %s\nCanonical: %s\n", preview.Kind, preview.ConfirmToken, preview.Canonical); err != nil {
+		if _, err := fmt.Fprintf(
+			w,
+			"Kind: %s\nConfirm Token: %s\nCanonical: %s\nLive Ready: %t\nMutation Ready: %t\n",
+			preview.Kind,
+			preview.ConfirmToken,
+			preview.Canonical,
+			preview.LiveReady,
+			preview.MutationReady,
+		); err != nil {
 			return err
 		}
 		if len(preview.Warnings) == 0 {

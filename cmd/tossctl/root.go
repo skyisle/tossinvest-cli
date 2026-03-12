@@ -24,6 +24,8 @@ type rootOptions struct {
 type appContext struct {
 	format            output.Format
 	paths             config.Paths
+	config            config.File
+	configService     *config.Service
 	loginConfig       auth.LoginConfig
 	authService       *auth.Service
 	client            *tossclient.Client
@@ -68,6 +70,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		newVersionCmd(opts),
 		newDoctorCmd(opts),
+		newConfigCmd(opts),
 		newAuthCmd(opts),
 		newAccountCmd(opts),
 		newPortfolioCmd(opts),
@@ -94,6 +97,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 
 	if opts.configDir != "" {
 		paths.ConfigDir = opts.configDir
+		paths.ConfigFile = filepath.Join(opts.configDir, "config.json")
 		paths.SessionFile = filepath.Join(opts.configDir, "session.json")
 		paths.PermissionFile = filepath.Join(opts.configDir, "trading-permission.json")
 	}
@@ -110,18 +114,25 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 
 	loginConfig := auth.DefaultLoginConfig(paths.CacheDir)
 	client := tossclient.New(tossclient.Config{Session: sess})
+	configService := config.NewService(paths.ConfigFile)
+	cfg, err := configService.Load(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	permissionService := permissions.NewService(paths.PermissionFile)
 
 	return &appContext{
-		format: format,
-		paths:  paths,
-		loginConfig: loginConfig,
+		format:        format,
+		paths:         paths,
+		config:        cfg,
+		configService: configService,
+		loginConfig:   loginConfig,
 		authService: auth.NewService(store, paths.SessionFile, auth.Options{
 			LoginConfig: loginConfig,
 			Validator:   client,
 		}),
 		client:            client,
 		permissionService: permissionService,
-		tradingService:    trading.NewService(permissionService, client),
+		tradingService:    trading.NewService(permissionService, cfg.Trading, client),
 	}, nil
 }
