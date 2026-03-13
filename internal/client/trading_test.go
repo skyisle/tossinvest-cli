@@ -23,9 +23,19 @@ func TestCancelPendingOrder(t *testing.T) {
 	var accountHeaders []string
 	var appVersions []string
 	var orderKeys []string
+	pendingCalls := 0
+	today := time.Now().Format("2006-01-02")
+	now := time.Now().Format("2006-01-02 15:04:05.000")
+	preparePath := "/api/v2/wts/trading/order/cancel/prepare/" + today + "/14"
+	cancelPath := "/api/v3/wts/trading/order/cancel/" + today + "/14"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/trading/orders/histories/all/pending" {
-			_, _ = w.Write([]byte(`{"result":[{"stockCode":"US20220809012","orderedDate":"2026-03-11","orderNo":14,"tradeType":"buy","orderPrice":700,"orderUsdPrice":0.4753,"quantity":1,"pendingQuantity":1,"orderPriceTypeCode":"00","isFractionalOrder":false,"isAfterMarketOrder":false,"status":"체결대기"}]}`))
+			pendingCalls++
+			if pendingCalls == 1 {
+				_, _ = w.Write([]byte(`{"result":[{"stockCode":"US20220809012","orderedDate":"` + today + `","orderNo":14,"tradeType":"buy","orderPrice":700,"orderUsdPrice":0.4753,"quantity":1,"pendingQuantity":1,"orderPriceTypeCode":"00","isFractionalOrder":false,"isAfterMarketOrder":false,"status":"체결대기"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"result":[]}`))
 			return
 		}
 		paths = append(paths, r.URL.Path)
@@ -37,10 +47,12 @@ func TestCancelPendingOrder(t *testing.T) {
 		bodies = append(bodies, string(body))
 		w.WriteHeader(http.StatusOK)
 		switch r.URL.Path {
-		case "/api/v2/wts/trading/order/cancel/prepare/2026-03-11/14":
+		case preparePath:
 			_, _ = w.Write([]byte(`{"result":{"delayCancelExchange":false,"orderKey":"trade::session::test::cancel","authRequired":{"required":false,"simpleTrade":true,"verifier":null}}}`))
-		case "/api/v3/wts/trading/order/cancel/2026-03-11/14":
-			_, _ = w.Write([]byte(`{"result":{"message":"취소 되었어요.","orderDate":"2026-03-11","orderNo":14,"orderId":"test-order-id"}}`))
+		case cancelPath:
+			_, _ = w.Write([]byte(`{"result":{"message":"취소 되었어요.","orderDate":"` + today + `","orderNo":14,"orderId":"test-order-id"}}`))
+		case "/api/v2/trading/my-orders/markets/us/by-date/completed":
+			_, _ = io.WriteString(w, `{"result":{"body":[{"orderedAt":"`+now+`","lastExecutedAt":"`+now+`","orderNo":15,"orderId":"completed-order-id","stockCode":"US20220809012","stockName":"TSLL","symbol":"TSLL","tradeType":"buy","status":"취소","orderQuantity":1,"executedQuantity":0,"userOrderDate":"`+today+`","orderPrice":{"krw":700},"averageExecutionPrice":{"krw":0}}]}}`)
 		default:
 			_, _ = w.Write([]byte(`{}`))
 		}
@@ -59,17 +71,29 @@ func TestCancelPendingOrder(t *testing.T) {
 		},
 	})
 
-	if err := client.CancelPendingOrder(context.Background(), "14"); err != nil {
-		t.Fatalf("CancelPendingOrder returned error: %v", err)
+	intent, err := orderintent.NormalizeCancel("14", "TSLL")
+	if err != nil {
+		t.Fatalf("NormalizeCancel returned error: %v", err)
 	}
 
-	if len(paths) != 2 {
-		t.Fatalf("expected 2 requests, got %d", len(paths))
+	result, err := client.CancelPendingOrder(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("CancelPendingOrder returned error: %v", err)
 	}
-	if paths[0] != "/api/v2/wts/trading/order/cancel/prepare/2026-03-11/14" {
+	if result.Status != "canceled" {
+		t.Fatalf("expected canceled result, got %q", result.Status)
+	}
+	if result.CurrentOrderID != today+"/15" {
+		t.Fatalf("expected current order id %s/15, got %q", today, result.CurrentOrderID)
+	}
+
+	if len(paths) != 3 {
+		t.Fatalf("expected 3 non-pending requests, got %d", len(paths))
+	}
+	if paths[0] != preparePath {
 		t.Fatalf("unexpected prepare path: %s", paths[0])
 	}
-	if paths[1] != "/api/v3/wts/trading/order/cancel/2026-03-11/14" {
+	if paths[1] != cancelPath {
 		t.Fatalf("unexpected cancel path: %s", paths[1])
 	}
 	if browserTabIDs[0] != "browser-tab-test123" || browserTabIDs[1] != "browser-tab-test123" {
@@ -181,6 +205,71 @@ func TestGetOrderAvailableActionsTreats400AsSoftFailure(t *testing.T) {
 	}
 }
 
+func TestCancelPendingOrderReturnsCompletedHistoryRollover(t *testing.T) {
+	t.Parallel()
+
+	today := time.Now().Format("2006-01-02")
+	now := time.Now().Format("2006-01-02 15:04:05.000")
+	preparePath := "/api/v2/wts/trading/order/cancel/prepare/" + today + "/14"
+	cancelPath := "/api/v3/wts/trading/order/cancel/" + today + "/14"
+	pendingCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/trading/orders/histories/all/pending":
+			pendingCalls++
+			if pendingCalls == 1 {
+				_, _ = w.Write([]byte(`{"result":[{"stockCode":"US20220809012","orderedDate":"` + today + `","orderNo":14,"tradeType":"buy","orderPrice":700,"orderUsdPrice":0.4753,"quantity":1,"pendingQuantity":1,"orderPriceTypeCode":"00","isFractionalOrder":false,"isAfterMarketOrder":false,"status":"체결대기"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		case preparePath:
+			_, _ = w.Write([]byte(`{"result":{"delayCancelExchange":false,"orderKey":"trade::session::test::cancel","authRequired":{"required":false,"simpleTrade":true,"verifier":null}}}`))
+		case cancelPath:
+			_, _ = w.Write([]byte(`{"result":{"message":"취소 되었어요.","orderDate":"` + today + `","orderNo":14,"orderId":"test-order-id"}}`))
+		case "/api/v2/trading/my-orders/markets/us/by-date/completed":
+			_, _ = io.WriteString(w, `{"result":{"body":[{"orderedAt":"`+now+`","lastExecutedAt":"`+now+`","orderNo":15,"orderId":"completed-cancel-order-id","stockCode":"US20220809012","stockName":"TSLL","symbol":"TSLL","tradeType":"buy","status":"취소","orderQuantity":1,"executedQuantity":0,"userOrderDate":"`+today+`","orderPrice":{"krw":700},"averageExecutionPrice":{"krw":0}}]}}`)
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		HTTPClient:  server.Client(),
+		APIBaseURL:  server.URL,
+		InfoBaseURL: server.URL,
+		CertBaseURL: server.URL,
+		Session: &session.Session{
+			Cookies: map[string]string{"SESSION": "test-session"},
+			Headers: map[string]string{"App-Version": "v260311.1636"},
+			Storage: map[string]string{"localStorage:qr-tabId": "browser-tab-test123"},
+		},
+	})
+
+	intent, err := orderintent.NormalizeCancel(today+"/14", "TSLL")
+	if err != nil {
+		t.Fatalf("NormalizeCancel returned error: %v", err)
+	}
+
+	result, err := client.CancelPendingOrder(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("CancelPendingOrder returned error: %v", err)
+	}
+	if result.Status != "canceled" {
+		t.Fatalf("expected canceled result, got %q", result.Status)
+	}
+	if result.OriginalOrderID != today+"/14" {
+		t.Fatalf("expected original order id %s/14, got %q", today, result.OriginalOrderID)
+	}
+	if result.CurrentOrderID != today+"/15" {
+		t.Fatalf("expected current order id %s/15, got %q", today, result.CurrentOrderID)
+	}
+	if result.OrderID != today+"/15" {
+		t.Fatalf("expected order id %s/15, got %q", today, result.OrderID)
+	}
+}
+
 func TestBuildAmendBodyMatchesCapturedShape(t *testing.T) {
 	order := pendingOrderDetails{
 		OrderNo:            "13",
@@ -253,7 +342,12 @@ func TestCancelPendingOrderReturnsInteractiveAuthRequired(t *testing.T) {
 		},
 	})
 
-	err := client.CancelPendingOrder(context.Background(), "14")
+	intent, err := orderintent.NormalizeCancel("14", "TSLL")
+	if err != nil {
+		t.Fatalf("NormalizeCancel returned error: %v", err)
+	}
+
+	_, err = client.CancelPendingOrder(context.Background(), intent)
 	if err == nil {
 		t.Fatal("expected auth challenge error")
 	}

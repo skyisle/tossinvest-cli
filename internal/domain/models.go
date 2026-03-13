@@ -56,6 +56,7 @@ type Position struct {
 
 type Order struct {
 	ID                    string          `json:"id"`
+	ResolvedFromID        string          `json:"resolved_from_id,omitempty"`
 	Symbol                string          `json:"symbol"`
 	Name                  string          `json:"name,omitempty"`
 	Market                string          `json:"market,omitempty"`

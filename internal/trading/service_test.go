@@ -13,15 +13,13 @@ import (
 )
 
 type brokerStub struct {
-	placeCalled     bool
-	cancelCalled    bool
-	amendCalled     bool
-	stillPending    bool
-	lastOrderID     string
-	pendingSequence []bool
-	pendingChecks   int
-	placeResult     MutationResult
-	amendResult     MutationResult
+	placeCalled  bool
+	cancelCalled bool
+	amendCalled  bool
+	lastOrderID  string
+	placeResult  MutationResult
+	cancelResult MutationResult
+	amendResult  MutationResult
 }
 
 func (b *brokerStub) PlacePendingOrder(_ context.Context, intent orderintent.PlaceIntent) (MutationResult, error) {
@@ -38,10 +36,13 @@ func (b *brokerStub) GetOrderAvailableActions(_ context.Context, orderID string)
 	return map[string]any{"cancelSupported": true}, nil
 }
 
-func (b *brokerStub) CancelPendingOrder(_ context.Context, orderID string) error {
+func (b *brokerStub) CancelPendingOrder(_ context.Context, intent orderintent.CancelIntent) (MutationResult, error) {
 	b.cancelCalled = true
-	b.lastOrderID = orderID
-	return nil
+	b.lastOrderID = intent.OrderID
+	if b.cancelResult.Kind == "" {
+		b.cancelResult = MutationResult{Kind: "cancel", Status: "canceled", OrderID: intent.OrderID}
+	}
+	return b.cancelResult, nil
 }
 
 func (b *brokerStub) AmendPendingOrder(_ context.Context, intent orderintent.AmendIntent) (MutationResult, error) {
@@ -51,18 +52,6 @@ func (b *brokerStub) AmendPendingOrder(_ context.Context, intent orderintent.Ame
 		b.amendResult = MutationResult{Kind: "amend", Status: "amended_pending", OrderID: intent.OrderID, CurrentOrderID: intent.OrderID}
 	}
 	return b.amendResult, nil
-}
-
-func (b *brokerStub) HasPendingOrder(context.Context, string) (bool, error) {
-	b.pendingChecks++
-	if len(b.pendingSequence) > 0 {
-		stillPending := b.pendingSequence[0]
-		if len(b.pendingSequence) > 1 {
-			b.pendingSequence = b.pendingSequence[1:]
-		}
-		return stillPending, nil
-	}
-	return b.stillPending, nil
 }
 
 func TestPlaceRequiresExecutionFlagsAndGrant(t *testing.T) {
@@ -186,83 +175,6 @@ func TestCancelExecutesBrokerAndReconciles(t *testing.T) {
 	}
 	if result.Status != "canceled" {
 		t.Fatalf("expected canceled result, got %q", result.Status)
-	}
-}
-
-func TestCancelWaitsForPendingOrderToDisappear(t *testing.T) {
-	dir := t.TempDir()
-	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
-	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
-		t.Fatalf("Grant returned error: %v", err)
-	}
-
-	previousAttempts := cancelReconcileAttempts
-	previousInterval := cancelReconcileInterval
-	cancelReconcileAttempts = 4
-	cancelReconcileInterval = time.Millisecond
-	defer func() {
-		cancelReconcileAttempts = previousAttempts
-		cancelReconcileInterval = previousInterval
-	}()
-
-	broker := &brokerStub{pendingSequence: []bool{true, true, false}}
-	service := NewService(permissionService, config.Trading{
-		Cancel:                true,
-		AllowLiveOrderActions: true,
-	}, broker)
-	intent, err := orderintent.NormalizeCancel("5", "TSLL")
-	if err != nil {
-		t.Fatalf("NormalizeCancel returned error: %v", err)
-	}
-
-	_, err = service.Cancel(context.Background(), intent, ExecuteOptions{
-		Execute:                    true,
-		DangerouslySkipPermissions: true,
-		Confirm:                    service.PreviewCancel(intent).ConfirmToken,
-	})
-	if err != nil {
-		t.Fatalf("Cancel returned error: %v", err)
-	}
-	if broker.pendingChecks != 3 {
-		t.Fatalf("expected 3 pending checks, got %d", broker.pendingChecks)
-	}
-}
-
-func TestCancelFailsWhenOrderStillPending(t *testing.T) {
-	dir := t.TempDir()
-	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
-	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
-		t.Fatalf("Grant returned error: %v", err)
-	}
-
-	broker := &brokerStub{stillPending: true}
-	service := NewService(permissionService, config.Trading{
-		Cancel:                true,
-		AllowLiveOrderActions: true,
-	}, broker)
-	previousAttempts := cancelReconcileAttempts
-	previousInterval := cancelReconcileInterval
-	cancelReconcileAttempts = 3
-	cancelReconcileInterval = time.Millisecond
-	defer func() {
-		cancelReconcileAttempts = previousAttempts
-		cancelReconcileInterval = previousInterval
-	}()
-	intent, err := orderintent.NormalizeCancel("5", "TSLL")
-	if err != nil {
-		t.Fatalf("NormalizeCancel returned error: %v", err)
-	}
-
-	_, err = service.Cancel(context.Background(), intent, ExecuteOptions{
-		Execute:                    true,
-		DangerouslySkipPermissions: true,
-		Confirm:                    service.PreviewCancel(intent).ConfirmToken,
-	})
-	if !errors.Is(err, ErrCancelStillPending) {
-		t.Fatalf("expected ErrCancelStillPending, got %v", err)
-	}
-	if broker.pendingChecks != 3 {
-		t.Fatalf("expected 3 pending checks, got %d", broker.pendingChecks)
 	}
 }
 

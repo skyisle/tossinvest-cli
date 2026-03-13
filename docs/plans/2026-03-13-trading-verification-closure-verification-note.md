@@ -98,6 +98,7 @@ Scope: US buy limit / KRW / non-fractional only
   - completed history did not keep the original reference `2026-03-13/1`
   - completed history recorded the canceled order as `2026-03-13/2`
   - `order show 2026-03-13/2` resolved the canceled order successfully
+  - later code change added a local lineage cache so `order show <original-id>` can follow this rollover when the mutation was executed through the same config dir
 
 ## Code Changes Found Necessary During Live Verification
 
@@ -109,6 +110,8 @@ Scope: US buy limit / KRW / non-fractional only
   - resolved broker order id path construction
   - path escaping of raw order ids
   - soft-failure handling for `400`
+  - cancel completed-history rollover reconciliation
+  - local alias lookup for `order show`
 
 ## Post-Run Safety State
 
@@ -117,12 +120,11 @@ Scope: US buy limit / KRW / non-fractional only
 
 ## Still Pending
 
-- decide whether to reflect cancel rollover behavior in user-facing docs
-- decide whether `order show <original id>` should follow cancel rollover to the new completed-history id
-- evidence-driven README updates after reviewing whether the observed interactive-auth branch for `amend` is account-specific or generally expected
+- live re-test of `order amend` after lineage/reconciliation changes
+- evidence-driven confirmation of whether the observed interactive-auth branch for `amend` is account-specific or generally expected
 
 ## Next Operator Steps
 
 1. Run full `go test ./...` after the live-driven fixes.
-2. Decide whether to document cancel rollover from `2026-03-13/1` to `2026-03-13/2` in README or trading docs.
-3. Decide whether to improve `order show` so the original pending-order reference can still find the canceled completed-history record.
+2. Live re-test `order amend` and record whether the outcome is still `interactive auth required` or a completed success path.
+3. If needed, document any new amend-specific rollover evidence in trading docs.

@@ -143,3 +143,64 @@ func TestFindOrderFallsBackToCompletedHistory(t *testing.T) {
 		t.Fatalf("expected filled quantity 1, got %v", order.FilledQuantity)
 	}
 }
+
+func TestFindOrderWithAliasesMarksResolvedFromID(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/trading/orders/histories/all/pending":
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		case "/api/v2/trading/my-orders/markets/us/by-date/completed":
+			_, _ = w.Write([]byte(`{
+			  "result": {
+			    "body": [
+			      {
+			        "orderedAt": "2026-03-13 00:00:00.000",
+			        "lastExecutedAt": "2026-03-13 00:00:00.000",
+			        "orderNo": 2,
+			        "orderId": "completed-order-id",
+			        "stockCode": "US20220809012",
+			        "stockName": "TSLL",
+			        "symbol": "TSLL",
+			        "tradeType": "buy",
+			        "status": "취소",
+			        "orderQuantity": 1,
+			        "executedQuantity": 0,
+			        "userOrderDate": "2026-03-13",
+			        "orderPrice": {"krw": 500},
+			        "averageExecutionPrice": {"krw": 0}
+			      }
+			    ]
+			  }
+			}`))
+		case "/api/v2/trading/my-orders/markets/kr/by-date/completed":
+			_, _ = w.Write([]byte(`{"result":{"body":[]}}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		HTTPClient:  server.Client(),
+		APIBaseURL:  server.URL,
+		InfoBaseURL: server.URL,
+		CertBaseURL: server.URL,
+		Session: &session.Session{
+			Cookies: map[string]string{"SESSION": "test-session"},
+			Headers: map[string]string{"App-Version": "v260311.1636", "Browser-Tab-Id": "browser-tab-test"},
+		},
+	})
+
+	order, err := client.FindOrderWithAliases(context.Background(), "2026-03-13/1", "all", "2026-03-13/2")
+	if err != nil {
+		t.Fatalf("FindOrderWithAliases returned error: %v", err)
+	}
+	if order.ID != "2026-03-13/2" {
+		t.Fatalf("expected order id 2026-03-13/2, got %q", order.ID)
+	}
+	if order.ResolvedFromID != "2026-03-13/1" {
+		t.Fatalf("expected resolved_from_id 2026-03-13/1, got %q", order.ResolvedFromID)
+	}
+}

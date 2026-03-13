@@ -170,46 +170,53 @@ func (c *Client) GetOrderAvailableActions(ctx context.Context, orderID string) (
 	return result, nil
 }
 
-func (c *Client) CancelPendingOrder(ctx context.Context, orderID string) error {
+func (c *Client) CancelPendingOrder(ctx context.Context, intent orderintent.CancelIntent) (tradingflow.MutationResult, error) {
+	startedAt := time.Now()
 	if err := c.ensureTradingMetadata(ctx); err != nil {
-		return err
+		return tradingflow.MutationResult{}, err
 	}
-	order, err := c.lookupPendingOrder(ctx, orderID)
+	order, err := c.lookupPendingOrder(ctx, intent.OrderID)
 	if err != nil {
-		return err
+		return tradingflow.MutationResult{}, err
 	}
 
 	bodyPrepare, bodyCancel, err := buildCancelBodies(order)
 	if err != nil {
-		return err
+		return tradingflow.MutationResult{}, err
 	}
 
 	var prepare mutationEnvelope[cancelPrepareResult]
 	if err := c.postTradingJSON(ctx, fmt.Sprintf("%s/api/v2/wts/trading/order/cancel/prepare/%s/%s", c.certBaseURL, order.OrderedDate, order.OrderNo), bodyPrepare, &prepare); err != nil {
-		return err
+		return tradingflow.MutationResult{}, err
 	}
 	if prepare.Result.AuthRequired.Required {
-		return fmt.Errorf("cancel requires additional authentication")
+		return tradingflow.MutationResult{}, tradingflow.ErrInteractiveAuthRequired
 	}
 	if strings.TrimSpace(prepare.Result.OrderKey) == "" {
-		return fmt.Errorf("cancel prepare response did not include order key")
+		return tradingflow.MutationResult{}, fmt.Errorf("cancel prepare response did not include order key")
 	}
 
 	var cancel mutationEnvelope[cancelResult]
 	if err := c.postTradingJSONWithHeaders(ctx, fmt.Sprintf("%s/api/v3/wts/trading/order/cancel/%s/%s", c.certBaseURL, order.OrderedDate, order.OrderNo), bodyCancel, map[string]string{
 		"X-Order-Key": prepare.Result.OrderKey,
 	}, &cancel); err != nil {
-		return err
+		return tradingflow.MutationResult{}, err
 	}
 	if strings.TrimSpace(cancel.Result.UUID) != "" &&
 		strings.TrimSpace(cancel.Result.Modulus) != "" &&
 		strings.TrimSpace(cancel.Result.Exponent) != "" {
-		return tradingflow.ErrInteractiveAuthRequired
+		return tradingflow.MutationResult{}, tradingflow.ErrInteractiveAuthRequired
 	}
 	if strings.TrimSpace(cancel.Result.Message) == "" {
-		return fmt.Errorf("cancel response did not include confirmation message")
+		return tradingflow.MutationResult{}, fmt.Errorf("cancel response did not include confirmation message")
 	}
-	return nil
+
+	expectedQty := order.PendingQuantity
+	if expectedQty == 0 {
+		expectedQty = order.Quantity
+	}
+
+	return c.reconcileCanceledOrder(ctx, intent.OrderID, order.StockCode, intent.Symbol, order.OrderPrice, expectedQty, startedAt)
 }
 
 func (c *Client) AmendPendingOrder(ctx context.Context, intent orderintent.AmendIntent) (tradingflow.MutationResult, error) {
@@ -551,7 +558,7 @@ func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol s
 			}, nil
 		}
 
-		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, true); err != nil {
+		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, true, nil); err != nil {
 			return tradingflow.MutationResult{}, err
 		} else if order != nil {
 			return tradingflow.MutationResult{
@@ -606,7 +613,7 @@ func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, pro
 			}, nil
 		}
 
-		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false); err != nil {
+		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, nil); err != nil {
 			return tradingflow.MutationResult{}, err
 		} else if order != nil {
 			return tradingflow.MutationResult{
@@ -644,6 +651,61 @@ func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, pro
 	}, nil
 }
 
+func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, productCode, symbol string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
+	completedEarliest := startedAt.Add(-mutationCompletedLookback)
+	for attempt := 0; attempt < mutationReconcileAttempts; attempt++ {
+		stillPending, err := c.HasPendingOrder(ctx, originalOrderID)
+		if err != nil {
+			return tradingflow.MutationResult{}, err
+		}
+		if !stillPending {
+			if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, func(order domain.Order) bool {
+				return orderStatusLooksCanceled(order.Status)
+			}); err != nil {
+				return tradingflow.MutationResult{}, err
+			} else if order != nil {
+				result := tradingflow.MutationResult{
+					Kind:      "cancel",
+					Status:    "canceled",
+					OrderID:   order.ID,
+					Symbol:    symbol,
+					Market:    "us",
+					Quantity:  order.Quantity,
+					Price:     order.Price,
+					OrderDate: order.OrderDate,
+				}
+				if order.ID != originalOrderID {
+					result.OriginalOrderID = originalOrderID
+					result.CurrentOrderID = order.ID
+				}
+				return result, nil
+			}
+
+			if attempt == mutationReconcileAttempts-1 {
+				return tradingflow.MutationResult{
+					Kind:            "cancel",
+					Status:          "canceled",
+					OrderID:         originalOrderID,
+					OriginalOrderID: originalOrderID,
+					Symbol:          symbol,
+					Market:          "us",
+					Quantity:        expectedQty,
+					Price:           expectedPriceKRW,
+					Warnings:        []string{"Pending order disappeared, but the canceled completed-history row is not visible yet."},
+				}, nil
+			}
+		}
+
+		if attempt < mutationReconcileAttempts-1 {
+			if err := waitForNextMutationCheck(ctx); err != nil {
+				return tradingflow.MutationResult{}, err
+			}
+		}
+	}
+
+	return tradingflow.MutationResult{}, tradingflow.ErrCancelStillPending
+}
+
 func (c *Client) findMatchingPendingOrder(ctx context.Context, productCode, symbol string, expectedPriceKRW, expectedQty float64, excludeID string) (*domain.Order, error) {
 	orders, err := c.ListPendingOrders(ctx)
 	if err != nil {
@@ -664,7 +726,7 @@ func (c *Client) findMatchingPendingOrder(ctx context.Context, productCode, symb
 	return nil, nil
 }
 
-func (c *Client) findMatchingCompletedOrder(ctx context.Context, market, productCode, symbol string, expectedPriceKRW, expectedQty float64, earliestSubmittedAt time.Time, requireFilled bool) (*domain.Order, error) {
+func (c *Client) findMatchingCompletedOrder(ctx context.Context, market, productCode, symbol string, expectedPriceKRW, expectedQty float64, earliestSubmittedAt time.Time, requireFilled bool, predicate func(domain.Order) bool) (*domain.Order, error) {
 	orders, err := c.ListCompletedOrders(ctx, market)
 	if err != nil {
 		return nil, err
@@ -685,6 +747,9 @@ func (c *Client) findMatchingCompletedOrder(ctx context.Context, market, product
 		if requireFilled && order.Status != "체결완료" {
 			continue
 		}
+		if predicate != nil && !predicate(order) {
+			continue
+		}
 		if equalFloat(order.Price, expectedPriceKRW) && (equalFloat(order.Quantity, expectedQty) || equalFloat(order.FilledQuantity, expectedQty)) {
 			orderCopy := order
 			return &orderCopy, nil
@@ -695,6 +760,10 @@ func (c *Client) findMatchingCompletedOrder(ctx context.Context, market, product
 
 func matchesOrderSymbol(order domain.Order, productCode, symbol string) bool {
 	return strings.EqualFold(order.Symbol, productCode) || strings.EqualFold(order.Symbol, symbol)
+}
+
+func orderStatusLooksCanceled(status string) bool {
+	return strings.Contains(strings.TrimSpace(status), "취소")
 }
 
 func waitForNextMutationCheck(ctx context.Context) error {

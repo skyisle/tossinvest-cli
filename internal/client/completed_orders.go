@@ -74,27 +74,61 @@ func (c *Client) ListCompletedOrdersRange(ctx context.Context, market string, fr
 }
 
 func (c *Client) FindOrder(ctx context.Context, orderID string, market string) (domain.Order, error) {
+	return c.FindOrderWithAliases(ctx, orderID, market)
+}
+
+func (c *Client) FindOrderWithAliases(ctx context.Context, orderID string, market string, aliases ...string) (domain.Order, error) {
+	candidates := uniqueOrderLookupCandidates(orderID, aliases...)
+
 	pendingOrders, err := c.ListPendingOrders(ctx)
 	if err != nil {
 		return domain.Order{}, err
 	}
-	for _, order := range pendingOrders {
-		if order.ID == orderID || orderMatchesID(order.Raw, orderID) {
-			return order, nil
-		}
+	if order, ok := findOrderInCollection(pendingOrders, orderID, candidates); ok {
+		return order, nil
 	}
 
 	completedOrders, err := c.ListCompletedOrders(ctx, market)
 	if err != nil {
 		return domain.Order{}, err
 	}
-	for _, order := range completedOrders {
-		if order.ID == orderID || orderMatchesID(order.Raw, orderID) {
-			return order, nil
-		}
+	if order, ok := findOrderInCollection(completedOrders, orderID, candidates); ok {
+		return order, nil
 	}
 
 	return domain.Order{}, fmt.Errorf("order %s was not found in pending or current-month completed history", orderID)
+}
+
+func uniqueOrderLookupCandidates(orderID string, aliases ...string) []string {
+	candidates := make([]string, 0, len(aliases)+1)
+	seen := map[string]struct{}{}
+	for _, candidate := range append([]string{orderID}, aliases...) {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		candidates = append(candidates, candidate)
+	}
+	return candidates
+}
+
+func findOrderInCollection(orders []domain.Order, requestedOrderID string, candidates []string) (domain.Order, bool) {
+	for _, candidate := range candidates {
+		for _, order := range orders {
+			if order.ID != candidate && !orderMatchesID(order.Raw, candidate) {
+				continue
+			}
+			if candidate != requestedOrderID {
+				order.ResolvedFromID = requestedOrderID
+			}
+			return order, true
+		}
+	}
+	return domain.Order{}, false
 }
 
 func parseCompletedOrder(raw json.RawMessage, market string) domain.Order {

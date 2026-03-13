@@ -26,7 +26,7 @@ func WriteOrder(w io.Writer, format Format, order domain.Order) error {
 		return encoder.Encode(order)
 	case FormatCSV:
 		writer := csv.NewWriter(w)
-		if err := writer.Write([]string{"id", "symbol", "name", "market", "side", "status", "quantity", "filled_quantity", "price", "average_execution_price", "order_date", "submitted_at"}); err != nil {
+		if err := writer.Write([]string{"id", "resolved_from_id", "symbol", "name", "market", "side", "status", "quantity", "filled_quantity", "price", "average_execution_price", "order_date", "submitted_at"}); err != nil {
 			return err
 		}
 		submittedAt := ""
@@ -35,6 +35,7 @@ func WriteOrder(w io.Writer, format Format, order domain.Order) error {
 		}
 		if err := writer.Write([]string{
 			order.ID,
+			order.ResolvedFromID,
 			order.Symbol,
 			order.Name,
 			order.Market,
@@ -54,6 +55,11 @@ func WriteOrder(w io.Writer, format Format, order domain.Order) error {
 	case FormatTable:
 		if _, err := fmt.Fprintf(w, "Order ID: %s\n", order.ID); err != nil {
 			return err
+		}
+		if order.ResolvedFromID != "" {
+			if _, err := fmt.Fprintf(w, "Resolved From: %s\n", order.ResolvedFromID); err != nil {
+				return err
+			}
 		}
 		if _, err := fmt.Fprintf(w, "Symbol: %s\n", order.Symbol); err != nil {
 			return err

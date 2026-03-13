@@ -187,6 +187,7 @@ CLI implication:
 - inline cancel is distinct from bulk cancel and should be modeled separately
 - both cancel modes still follow `prepare -> mutation -> reconcile`
 - mutation success alone is insufficient; the client should confirm the order disappeared from pending history
+- cancel may reappear in completed history under a new user-facing order reference, so lookup should not assume the original pending ref survives
 - a later capture confirmed the cancel body includes:
   - `stockCode`
   - `tradeType`

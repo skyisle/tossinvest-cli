@@ -8,6 +8,7 @@ import (
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/config"
+	"github.com/junghoonkye/tossinvest-cli/internal/orderlineage"
 	"github.com/junghoonkye/tossinvest-cli/internal/output"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 	"github.com/junghoonkye/tossinvest-cli/internal/session"
@@ -30,6 +31,7 @@ type appContext struct {
 	authService       *auth.Service
 	client            *tossclient.Client
 	permissionService *permissions.Service
+	lineageService    *orderlineage.Service
 	tradingService    *trading.Service
 }
 
@@ -100,6 +102,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 		paths.ConfigFile = filepath.Join(opts.configDir, "config.json")
 		paths.SessionFile = filepath.Join(opts.configDir, "session.json")
 		paths.PermissionFile = filepath.Join(opts.configDir, "trading-permission.json")
+		paths.LineageFile = filepath.Join(opts.configDir, "trading-lineage.json")
 	}
 
 	if opts.sessionFile != "" {
@@ -133,6 +136,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 		}),
 		client:            client,
 		permissionService: permissionService,
+		lineageService:    orderlineage.NewService(paths.LineageFile),
 		tradingService:    trading.NewService(permissionService, cfg.Trading, client),
 	}, nil
 }

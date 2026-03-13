@@ -93,6 +93,7 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 		checkFile("config_file", s.paths.ConfigFile),
 		checkFile("session_file", s.paths.SessionFile),
 		checkFile("permission_file", s.paths.PermissionFile),
+		checkFile("lineage_file", s.paths.LineageFile),
 		checkTradingConfig(s.configState),
 		checkLiveOrderActions(s.configState),
 		checkDangerousAutomation(s.configState),
@@ -102,7 +103,7 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 			Name:    "trading_scope",
 			Status:  CheckInfo,
 			Summary: "trading support is intentionally narrow and still beta",
-			Detail:  "Currently validated for US buy limit / KRW / non-fractional, plus same-day pending cancel.",
+			Detail:  "Currently validated for US buy limit / KRW / non-fractional, plus same-day pending cancel. Amend still needs more live verification.",
 		},
 	}
 

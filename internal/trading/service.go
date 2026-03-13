@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"fmt"
-	"time"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/orderintent"
@@ -14,9 +13,8 @@ import (
 type Broker interface {
 	PlacePendingOrder(ctx context.Context, intent orderintent.PlaceIntent) (MutationResult, error)
 	GetOrderAvailableActions(ctx context.Context, orderID string) (map[string]any, error)
-	CancelPendingOrder(ctx context.Context, orderID string) error
+	CancelPendingOrder(ctx context.Context, intent orderintent.CancelIntent) (MutationResult, error)
 	AmendPendingOrder(ctx context.Context, intent orderintent.AmendIntent) (MutationResult, error)
-	HasPendingOrder(ctx context.Context, orderID string) (bool, error)
 }
 
 type Preview struct {
@@ -39,11 +37,6 @@ type Service struct {
 	policy      config.Trading
 	broker      Broker
 }
-
-var (
-	cancelReconcileAttempts = 8
-	cancelReconcileInterval = 250 * time.Millisecond
-)
 
 func NewService(permissionService *permissions.Service, policy config.Trading, broker Broker) *Service {
 	return &Service{
@@ -141,20 +134,7 @@ func (s *Service) Cancel(ctx context.Context, intent orderintent.CancelIntent, o
 	if _, err := s.broker.GetOrderAvailableActions(ctx, intent.OrderID); err != nil {
 		return MutationResult{}, err
 	}
-	if err := s.broker.CancelPendingOrder(ctx, intent.OrderID); err != nil {
-		return MutationResult{}, err
-	}
-
-	if err := s.waitForCanceledOrder(ctx, intent.OrderID); err != nil {
-		return MutationResult{}, err
-	}
-
-	return MutationResult{
-		Kind:    "cancel",
-		Status:  "canceled",
-		OrderID: intent.OrderID,
-		Symbol:  intent.Symbol,
-	}, nil
+	return s.broker.CancelPendingOrder(ctx, intent)
 }
 
 func (s *Service) Amend(ctx context.Context, intent orderintent.AmendIntent, opts ExecuteOptions) (MutationResult, error) {
@@ -220,29 +200,4 @@ func placeIntentSupported(intent orderintent.PlaceIntent) bool {
 		intent.OrderType == "limit" &&
 		intent.CurrencyMode == "KRW" &&
 		!intent.Fractional
-}
-
-func (s *Service) waitForCanceledOrder(ctx context.Context, orderID string) error {
-	for attempt := 0; attempt < cancelReconcileAttempts; attempt++ {
-		stillPending, err := s.broker.HasPendingOrder(ctx, orderID)
-		if err != nil {
-			return err
-		}
-		if !stillPending {
-			return nil
-		}
-		if attempt == cancelReconcileAttempts-1 {
-			break
-		}
-
-		timer := time.NewTimer(cancelReconcileInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-
-	return ErrCancelStillPending
 }
