@@ -24,7 +24,7 @@
 > 이 프로젝트는 토스증권 공식 제품이 아닙니다. 웹 내부 API는 예고 없이 바뀔 수 있고, 잘못 쓰면 실제 계좌에 영향을 줄 수 있습니다.
 
 > [!IMPORTANT]
-> 현재 거래 기능은 베타 단계입니다. 설치 직후에는 모든 거래 기능이 기본적으로 꺼져 있고, 사용자가 `config.json`에서 기능별로 직접 허용해야만 실행할 수 있습니다.
+> 현재 거래 기능은 live 검증이 쌓인 좁은 베타입니다. 설치 직후에는 모든 거래 기능이 기본적으로 꺼져 있고, 사용자가 `config.json`에서 기능별로 직접 허용해야만 실행할 수 있습니다.
 
 <div align="center">
 <table>
@@ -85,6 +85,20 @@ Only use `tossctl order preview` before any trading mutation.
 
 현재는 조회 기능과 좁은 거래 베타 범위를 중심으로 구현되어 있습니다.
 
+## 현재 상태
+
+- 조회 기능은 일상적인 스크립트/자동화 용도로 바로 쓸 수 있습니다.
+- 거래 기능은 `US buy limit / KRW / non-fractional` 슬라이스에 한해 live 검증이 쌓여 있습니다.
+- 기본 동작은 안전 우선입니다.
+  - config 허용
+  - temporary permission
+  - `preview`
+  - `--execute`
+  - `--dangerously-skip-permissions`
+  - `--confirm`
+- 브로커 분기가 나오면 설명하고 멈추는 것이 기본입니다.
+  - 현재 예외는 `dangerous_automation.accept_fx_consent=true`일 때의 post-prepare FX confirmation branch뿐입니다.
+
 ## 이런 경우에 잘 맞습니다
 
 - 자산 현황을 스크립트에서 주기적으로 확인하고 싶을 때
@@ -133,6 +147,15 @@ tossctl config show
 
 `grant`, `place`, `cancel`, `amend`는 기능별 허용 여부입니다. `allow_live_order_actions`는 실제 계좌에 영향을 주는 주문 액션 자체를 허용할지 정하고, `dangerous_automation`은 어떤 위험한 브로커 분기를 자동 진행할 수 있게 둘지 정합니다.
 
+현재 실제 handler가 연결된 dangerous automation은 아래 하나입니다.
+
+- `trading.dangerous_automation.accept_fx_consent`
+  - `prepare`는 성공했지만 `needExchange > 0`이라서 웹과 같은 FX confirmation branch가 뜨는 경우
+  - `false`면 CLI가 설명하고 멈춥니다.
+  - `true`면 확인된 웹 흐름과 같은 방식으로 `order/create`를 계속 진행합니다.
+
+나머지 dangerous automation key는 설정 표면과 정책 공간은 열려 있지만, 아직 같은 수준으로 닫힌 실행 handler가 아닐 수 있습니다.
+
 ## 지원 범위
 
 ### 지금 바로 되는 것
@@ -158,11 +181,13 @@ tossctl config show
 - `order show <id>`
 - local lineage fallback for `order show <old-id>` after same-machine `cancel` or `amend` rollover
 - step-by-step operator guidance when `order place` is blocked by funding or FX-consent branches
+- post-prepare FX branch stop after successful `prepare`
+- `dangerous_automation.accept_fx_consent` for the known post-prepare FX confirmation branch
 
 ### 아직 더 필요한 것
 
 - `order amend` 재검증
-- `place`와 `amend`의 상태 확인 흐름 추가 검증
+- `amend` interactive auth branch 정리
 - `매도`, `시장가`, `국내주식`, `소수점 주문`
 
 ## 이 프로젝트가 하지 않는 것
@@ -280,6 +305,18 @@ tossctl order place \
 tossctl orders list --output json
 ```
 
+만약 `1000 KRW`처럼 post-prepare FX confirmation branch가 나오는 입력까지 자동 진행하려면, config에 아래 값을 추가로 켭니다.
+
+```json
+{
+  "trading": {
+    "dangerous_automation": {
+      "accept_fx_consent": true
+    }
+  }
+}
+```
+
 ## 거래 안전장치
 
 거래 기능은 기본적으로 여러 단계 확인을 거치게 되어 있습니다.
@@ -322,7 +359,7 @@ make test
 토스증권 조회를 스크립트에 넣고 싶거나, 주문 전 확인과 제한된 주문 흐름을 CLI로 다루고 싶은 사용자에게 맞습니다.
 
 **바로 주문까지 가능한가요?**  
-일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`, 당일 pending `cancel`, 그리고 `orders completed` / `order show <id>` 기반 상태 조회입니다. `cancel`과 `amend` 후 ref rollover는 same-machine local lineage cache로 다시 찾을 수 있고, delayed cancel rollover도 `order show <old-id>`가 later completed-history lookup으로 복구할 수 있습니다. 다만 ambiguous candidate가 생기면 수동 확인이 필요합니다. `order place`가 funding 또는 FX-consent 분기에 막히면 CLI가 단계별 행동과 재시도 명령을 안내하지만, 아직 자동 진행은 하지 않습니다. `amend` 자체는 아직 더 많은 live 검증이 필요합니다. 거래 기능은 먼저 `config.json`에서 해당 액션을 직접 허용해야 합니다.
+일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`, 당일 pending `cancel`, `orders completed`, `order show <id>` 기반 상태 조회입니다. `cancel`과 `amend` 후 ref rollover는 same-machine local lineage cache로 다시 찾을 수 있고, delayed cancel rollover도 `order show <old-id>`가 later completed-history lookup으로 복구할 수 있습니다. 다만 ambiguous candidate가 생기면 수동 확인이 필요합니다. `order place`가 funding 분기에 막히면 CLI가 단계별 행동과 재시도 명령을 안내합니다. FX confirmation branch는 기본적으로 설명하고 멈추지만, `trading.dangerous_automation.accept_fx_consent=true`를 켜면 현재 확인된 경로에 한해 자동 진행할 수 있습니다. `amend` 자체는 아직 더 많은 live 검증이 필요합니다. 거래 기능은 먼저 `config.json`에서 해당 액션을 직접 허용해야 합니다.
 
 **공식 API인가요?**  
 아닙니다. 토스증권 공식 제품이 아니고, 웹 내부 API를 재사용하는 비공식 프로젝트입니다.
