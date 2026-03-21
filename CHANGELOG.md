@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-03-21
+
+### Added
+- `tossctl quote batch <symbol> [symbol...]` — fetch multiple stock quotes at once
+- `tossctl export positions --market kr|us|all` — filter exported positions by market
+- `tossctl export orders --market kr|us|all` — filter exported orders by market
+- Quote output tests (6 test cases)
+
+### Fixed
+- Floating point display artifacts in quote batch table output (e.g., `-0.8500000000000014` → `-0.85`)
+
 ## [0.2.1] - 2026-03-21
 
 ### Added
