@@ -229,15 +229,17 @@ func (s *Service) requireActionEnabled(action Action) error {
 }
 
 func placeIntentSupported(intent orderintent.PlaceIntent) bool {
-	if intent.CurrencyMode != "KRW" {
-		return false
-	}
 	if intent.Market != "us" && intent.Market != "kr" {
 		return false
 	}
 	if intent.Fractional {
-		// fractional orders require US market + market order type
-		return intent.Market == "us" && intent.OrderType == "market"
+		// fractional orders: US market + market order, KRW or USD
+		return intent.Market == "us" && intent.OrderType == "market" &&
+			(intent.CurrencyMode == "KRW" || intent.CurrencyMode == "USD")
+	}
+	// non-fractional: KRW only, limit only
+	if intent.CurrencyMode != "KRW" {
+		return false
 	}
 	return intent.OrderType == "limit"
 }

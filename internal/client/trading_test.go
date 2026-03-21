@@ -297,7 +297,7 @@ func TestBuildAmendBodyMatchesCapturedShape(t *testing.T) {
 		t.Fatalf("expected qty 1, got %v", expectedQty)
 	}
 
-	expected := `{"agreedOver100Million":false,"currencyMode":"KRW","isReservationOrder":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.4753,"quantity":1,"stockCode":"US20220809012","tradeType":"buy","withOrderKey":true}`
+	expected := `{"agreedOver100Million":false,"currencyMode":"KRW","isReservationOrder":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.48,"quantity":1,"stockCode":"US20220809012","tradeType":"buy","withOrderKey":true}`
 	if string(body) != expected {
 		t.Fatalf("unexpected amend prepare body:\nwant: %s\ngot:  %s", expected, string(body))
 	}
@@ -306,7 +306,7 @@ func TestBuildAmendBodyMatchesCapturedShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildAmendBody returned error: %v", err)
 	}
-	expected = `{"agreedOver100Million":false,"currencyMode":"KRW","isReservationOrder":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.4753,"quantity":1,"stockCode":"US20220809012","tradeType":"buy"}`
+	expected = `{"agreedOver100Million":false,"currencyMode":"KRW","isReservationOrder":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.48,"quantity":1,"stockCode":"US20220809012","tradeType":"buy"}`
 	if string(body) != expected {
 		t.Fatalf("unexpected amend body:\nwant: %s\ngot:  %s", expected, string(body))
 	}
@@ -382,7 +382,7 @@ func TestBuildPlaceBodyMatchesCapturedShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlaceBody returned error: %v", err)
 	}
-	expected := `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.3395,"quantity":1,"stockCode":"US20220809012","tradeType":"buy","withOrderKey":true}`
+	expected := `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.34,"quantity":1,"stockCode":"US20220809012","tradeType":"buy","withOrderKey":true}`
 	if string(body) != expected {
 		t.Fatalf("unexpected place prepare body:\nwant: %s\ngot:  %s", expected, string(body))
 	}
@@ -391,7 +391,7 @@ func TestBuildPlaceBodyMatchesCapturedShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlaceBody returned error: %v", err)
 	}
-	expected = `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","extra":{"close":14.4,"closeKrw":21208,"exchangeRate":1472.8,"orderMethod":"종목상세__주문하기"},"isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.3395,"quantity":1,"stockCode":"US20220809012","tradeType":"buy"}`
+	expected = `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","extra":{"close":14.4,"closeKrw":21208,"exchangeRate":1472.8,"orderMethod":"종목상세__주문하기"},"isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.34,"quantity":1,"stockCode":"US20220809012","tradeType":"buy"}`
 	if string(body) != expected {
 		t.Fatalf("unexpected place create body:\nwant: %s\ngot:  %s", expected, string(body))
 	}
@@ -421,7 +421,7 @@ func TestBuildPlaceBodySellTradeType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlaceBody returned error: %v", err)
 	}
-	expected := `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.3395,"quantity":1,"stockCode":"US20220809012","tradeType":"sell","withOrderKey":true}`
+	expected := `{"agreedOver100Million":false,"allowAutoExchange":true,"currencyMode":"KRW","isReservationOrder":false,"marginTrading":false,"market":"NSQ","max":false,"openPriceSinglePriceYn":false,"orderAmount":0,"orderPriceType":"00","price":0.34,"quantity":1,"stockCode":"US20220809012","tradeType":"sell","withOrderKey":true}`
 	if string(body) != expected {
 		t.Fatalf("unexpected sell prepare body:\nwant: %s\ngot:  %s", expected, string(body))
 	}

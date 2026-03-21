@@ -1,6 +1,6 @@
 <div align="center">
   <h1>tossinvest-cli</h1>
-  <p>토스증권 웹 세션을 재사용해 조회와 제한된 거래 기능을 터미널에서 다루기 위한 비공식 CLI입니다.</p>
+  <p>토스증권 웹 세션을 재사용해 조회와 거래를 터미널에서 다루기 위한 비공식 CLI입니다.</p>
   <p>실행 바이너리는 <code>tossctl</code>입니다.</p>
 </div>
 
@@ -24,7 +24,7 @@
 > 이 프로젝트는 토스증권 공식 제품이 아닙니다. 웹 내부 API는 예고 없이 바뀔 수 있고, 잘못 쓰면 실제 계좌에 영향을 줄 수 있습니다.
 
 > [!IMPORTANT]
-> 현재 거래 기능은 live 검증이 쌓인 좁은 베타입니다. 설치 직후에는 모든 거래 기능이 기본적으로 꺼져 있고, 사용자가 `config.json`에서 기능별로 직접 허용해야만 실행할 수 있습니다.
+> 거래 기능은 설치 직후 모두 꺼져 있습니다. `config.json`에서 기능별로 직접 허용해야만 실행됩니다.
 
 <div align="center">
 <table>
@@ -73,58 +73,50 @@ Trading actions stay disabled until config.json explicitly allows them.
 Only use `tossctl order preview` before any trading mutation.
 ```
 
-## tossinvest-cli란
+## 지원 범위
 
-`tossinvest-cli`는 토스증권 웹 세션을 재사용해 아래 작업을 CLI에서 다룰 수 있게 만든 도구입니다.
+### 조회 (읽기 전용)
 
-- 계좌 상태 읽기
-- 시세와 미체결 주문 확인
-- 주문 전 확인
-- 제한된 범위의 주문 실행
-- 다른 자동화 흐름으로 결과 전달
+| 기능 | 커맨드 | US | KR |
+|------|--------|:--:|:--:|
+| 계좌 목록 / 요약 | `account list`, `account summary` | O | O |
+| 포트폴리오 | `portfolio positions`, `portfolio allocation` | O | O |
+| 시세 | `quote get <symbol>`, `quote batch <sym> [sym...]` | O | O |
+| 미체결 주문 | `orders list` | O | O |
+| 체결 내역 | `orders completed --market us\|kr\|all` | O | O |
+| 단건 주문 조회 | `order show <id>` | O | O |
+| 관심 종목 | `watchlist list` | O | O |
+| CSV 내보내기 | `export positions --market`, `export orders --market` | O | O |
 
-현재는 조회 기능과 좁은 거래 베타 범위를 중심으로 구현되어 있습니다.
+### 거래
 
-## 현재 상태
+| 기능 | 커맨드 | 필요 config |
+|------|--------|-------------|
+| 지정가 매수 (US/KR) | `order place --side buy --price <KRW>` | `place` |
+| 지정가 매도 (US/KR) | `order place --side sell --price <KRW>` | `place` + `sell` |
+| 국내주식 거래 | `order place --market kr` | `place` + `kr` |
+| 소수점 매수 (US) | `order place --fractional --amount <KRW>` | `place` + `fractional` |
+| 주문 취소 | `order cancel --order-id <id>` | `cancel` |
+| 주문 정정 | `order amend --order-id <id>` | `amend` |
+| 거래 권한 관리 | `order permissions grant\|status\|revoke` | `grant` |
 
-- 조회 기능은 일상적인 스크립트/자동화 용도로 바로 쓸 수 있습니다.
-- 거래 기능은 `US/KR buy/sell limit / KRW / non-fractional` 슬라이스에 한해 live 검증이 쌓여 있습니다. sell은 `trading.sell=true`, 국내주식은 `trading.kr=true` 추가 설정이 필요합니다.
-- 기본 동작은 안전 우선입니다.
-  - config 허용
-  - temporary permission
-  - `preview`
-  - `--execute`
-  - `--dangerously-skip-permissions`
-  - `--confirm`
-- 브로커 분기가 나오면 설명하고 멈추는 것이 기본입니다.
-  - 현재 예외는 `dangerous_automation.accept_fx_consent=true`일 때의 post-prepare FX confirmation branch뿐입니다.
+모든 거래는 `allow_live_order_actions=true`도 필요합니다. 소수점 주문은 시장가(market order)로 자동 전환되며, 금액(KRW) 기반입니다.
 
-## 이런 경우에 잘 맞습니다
+### Safety Model
 
-- 자산 현황을 스크립트에서 주기적으로 확인하고 싶을 때
-- 미체결 주문과 시세를 `json`으로 뽑아 다른 시스템에 넘기고 싶을 때
-- 조건 계산과 실제 실행 단계를 분리하고 싶을 때
-- 자동화 도구가 토스증권 작업을 명령 단위로 호출할 수 있게 만들고 싶을 때
+```
+config.json 허용 → permissions grant (TTL) → preview → --execute
+  → --dangerously-skip-permissions → --confirm <token>
+```
 
-## 어떤 문제를 줄여주는가
-
-| 직접 웹에서 할 때 | `tossinvest-cli`를 쓰면 |
-|---|---|
-| 계좌, 시세, 미체결 주문을 반복해서 열어 봐야 한다 | 조회 명령을 스크립트와 터미널에서 바로 호출할 수 있다 |
-| 데이터를 다른 도구로 넘기기 어렵다 | `json` 출력으로 후속 자동화에 연결할 수 있다 |
-| 주문 전 확인과 실제 실행을 한 흐름에서 섞기 쉽다 | `preview`와 실행 단계를 분리할 수 있다 |
-| 브라우저 세션이 살아 있어도 자동화 경로가 없다 | 웹 세션을 재사용하는 CLI 흐름을 만들 수 있다 |
+6단계 게이트. 거래 기능은 기본 전부 꺼져 있고, 하나씩 열어야 실행 가능.
 
 ## Config
-
-기본 설정 파일 경로는 `<config dir>/config.json`입니다. 파일이 없어도 CLI는 동작하지만, 이 경우 거래 기능은 모두 비활성 상태로 동작합니다.
 
 ```bash
 tossctl config init
 tossctl config show
 ```
-
-생성되는 기본 설정은 아래와 같습니다.
 
 ```json
 {
@@ -148,51 +140,76 @@ tossctl config show
 }
 ```
 
-`grant`, `place`, `sell`, `kr`, `cancel`, `amend`는 기능별 허용 여부입니다. `sell`은 `place`와 함께 켜야 매도 주문이 가능합니다. `kr`은 `place`와 함께 켜야 국내주식 주문이 가능합니다. `allow_live_order_actions`는 실제 계좌에 영향을 주는 주문 액션 자체를 허용할지 정하고, `dangerous_automation`은 어떤 위험한 브로커 분기를 자동 진행할 수 있게 둘지 정합니다.
+| 필드 | 설명 |
+|------|------|
+| `grant` | `order permissions grant` 허용 |
+| `place` | `order place` 허용 |
+| `sell` | 매도 주문 허용 (`place`도 필요) |
+| `kr` | 국내주식 거래 허용 (`place`도 필요) |
+| `fractional` | 소수점 주문 허용 (`place`도 필요, US 시장가만) |
+| `cancel` | `order cancel` 허용 |
+| `amend` | `order amend` 허용 |
+| `allow_live_order_actions` | 실계좌에 영향을 주는 주문 액션 허용 |
+| `accept_fx_consent` | post-prepare FX confirmation 자동 진행 |
 
-현재 실제 handler가 연결된 dangerous automation은 아래 하나입니다.
+## 주문 예시
 
-- `trading.dangerous_automation.accept_fx_consent`
-  - `prepare`는 성공했지만 `needExchange > 0`이라서 웹과 같은 FX confirmation branch가 뜨는 경우
-  - `false`면 CLI가 설명하고 멈춥니다.
-  - `true`면 확인된 웹 흐름과 같은 방식으로 `order/create`를 계속 진행합니다.
+### 지정가 매수 (US)
 
-나머지 dangerous automation key는 설정 표면과 정책 공간은 열려 있지만, 아직 같은 수준으로 닫힌 실행 handler가 아닐 수 있습니다.
+```bash
+tossctl config init
+# config.json: grant, place, allow_live_order_actions → true
 
-## 지원 범위
+tossctl order preview \
+  --symbol TSLL --side buy --qty 1 --price 18000 --output json
 
-### 지금 바로 되는 것
+tossctl order permissions grant --ttl 300
 
-- 브라우저 로그인 기반 세션 저장과 재사용
-- 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
-- `orders completed`, `order show <id>`로 pending/completed 주문 추적
-- 제한된 거래 베타
-  - `미국주식`
-  - `매수` / `매도` (매도는 `trading.sell=true` 필요)
-  - `소수점 주문` (US 시장가, `trading.fractional=true` 필요)
-  - `지정가`
-  - `KRW`
-  - `비소수점`
-- 당일 미체결 주문 취소
-- 거래 분석 문서와 민감정보를 정리한 fixture 관리
+tossctl order place \
+  --symbol TSLL --side buy --qty 1 --price 18000 \
+  --execute --dangerously-skip-permissions --confirm <token> \
+  --output json
+```
 
-### live 검증이 끝난 범위
+### 소수점 매수 (US, 금액 기반)
 
-- `order preview`
-- `order place` for `US/KR buy/sell limit / KRW / non-fractional` (sell requires `trading.sell=true`, KR requires `trading.kr=true`)
-- `order cancel` for same-day pending orders
-- `orders completed`
-- `order show <id>`
-- local lineage fallback for `order show <old-id>` after same-machine `cancel` or `amend` rollover
-- step-by-step operator guidance when `order place` is blocked by funding or FX-consent branches
-- post-prepare FX branch stop after successful `prepare`
-- `dangerous_automation.accept_fx_consent` for the known post-prepare FX confirmation branch
+```bash
+# config.json: grant, place, fractional, allow_live_order_actions → true
 
-### 아직 더 필요한 것
+tossctl order preview \
+  --symbol TSLL --side buy --fractional --amount 1000 --qty 0 --output json
 
-- `order amend` 재검증
-- `amend` interactive auth branch 정리
-- `시장가` (비소수점)
+tossctl order place \
+  --symbol TSLL --side buy --fractional --amount 1000 --qty 0 \
+  --execute --dangerously-skip-permissions --confirm <token> \
+  --output json
+```
+
+### 국내주식 매수
+
+```bash
+# config.json: grant, place, kr, allow_live_order_actions → true
+
+tossctl order place \
+  --symbol 005930 --market kr --side buy --qty 1 --price 200000 \
+  --execute --dangerously-skip-permissions --confirm <token>
+```
+
+### 매도
+
+```bash
+# config.json: sell → true (추가)
+
+tossctl order place \
+  --symbol TSLL --side sell --qty 1 --price 18000 \
+  --execute --dangerously-skip-permissions --confirm <token>
+```
+
+### 다종목 시세
+
+```bash
+tossctl quote batch TSLL 005930 GOOG VOO --output table
+```
 
 ## 이 프로젝트가 하지 않는 것
 
@@ -206,20 +223,9 @@ tossctl config show
 
 ### Homebrew
 
-macOS에서는 Homebrew 설치를 기본 경로로 생각하고 있습니다.
-
 ```bash
 brew tap JungHoonGhae/tossinvest-cli
 brew install tossctl
-```
-
-설치 후에는 먼저 환경을 확인합니다.
-
-```bash
-tossctl version
-tossctl doctor
-tossctl config show
-tossctl auth doctor
 ```
 
 ### From source
@@ -239,139 +245,73 @@ python3 -m playwright install chromium
 ### 조회
 
 ```bash
-tossctl version
-tossctl doctor
-tossctl config show
-
-tossctl auth login
-tossctl auth doctor
-tossctl auth status
-tossctl auth logout
-
 tossctl account list
 tossctl account summary
 tossctl portfolio positions
 tossctl portfolio allocation
 tossctl orders list
-tossctl orders completed
-tossctl watchlist list
+tossctl orders completed --market us|kr|all
+tossctl order show <id>
 tossctl quote get <symbol>
+tossctl quote batch <symbol> [symbol...]
+tossctl watchlist list
+tossctl export positions --market us|kr|all
+tossctl export orders --market us|kr|all
 ```
 
 ### 거래
 
 ```bash
-tossctl order preview
-tossctl order show <id>
-tossctl config init
-tossctl config show
-tossctl order place
-tossctl order cancel
-tossctl order amend
-tossctl order permissions status
+tossctl order preview --symbol <sym> --side <buy|sell> --qty <n> --price <krw>
+tossctl order preview --symbol <sym> --side buy --fractional --amount <krw> --qty 0
+tossctl order place ...flags... --execute --dangerously-skip-permissions --confirm <token>
+tossctl order cancel --order-id <id> --symbol <sym> ...
+tossctl order amend --order-id <id> ...
 tossctl order permissions grant --ttl 300
+tossctl order permissions status
 tossctl order permissions revoke
 ```
 
-## 주문 예시
-
-아래는 `TSLL` 1주를 `500원` 지정가로 미리보기한 뒤 실제 주문하는 흐름입니다.
+### 시스템
 
 ```bash
+tossctl version
+tossctl doctor
 tossctl config init
-# edit config.json and set trading.grant/place/allow_live_order_actions to true
-# for sell orders, also set trading.sell to true
-# for KR stocks, also set trading.kr to true
-
-tossctl order preview \
-  --symbol TSLL \
-  --market us \
-  --side buy \
-  --type limit \
-  --qty 1 \
-  --price 500 \
-  --currency-mode KRW \
-  --output json
-
-tossctl order permissions grant --ttl 300
-
-tossctl order place \
-  --symbol TSLL \
-  --market us \
-  --side buy \
-  --type limit \
-  --qty 1 \
-  --price 500 \
-  --currency-mode KRW \
-  --execute \
-  --dangerously-skip-permissions \
-  --confirm <preview-token> \
-  --output json
-
-tossctl orders list --output json
+tossctl config show
+tossctl auth login
+tossctl auth status
+tossctl auth doctor
+tossctl auth logout
 ```
-
-만약 `1000 KRW`처럼 post-prepare FX confirmation branch가 나오는 입력까지 자동 진행하려면, config에 아래 값을 추가로 켭니다.
-
-```json
-{
-  "trading": {
-    "dangerous_automation": {
-      "accept_fx_consent": true
-    }
-  }
-}
-```
-
-## 거래 안전장치
-
-거래 기능은 기본적으로 여러 단계 확인을 거치게 되어 있습니다.
-
-- `config.json`에서 기능별 허용
-- `config.json`에서 `allow_live_order_actions` 허용
-- `order preview`
-- `order permissions grant`
-- `--execute`
-- `--dangerously-skip-permissions`
-- `--confirm`
-
-금융 자동화에서는 편의성보다 오작동 방지가 먼저라고 보고 있습니다.
 
 ## 주문 ref rollover
 
-`amend`나 `cancel` 이후에는 브로커 쪽 주문 ref가 새 값으로 바뀔 수 있습니다.
+`amend`나 `cancel` 이후 브로커 쪽 주문 ref가 바뀔 수 있습니다.
 
-- mutation 결과에 `original_order_id`와 `current_order_id`가 함께 나오면 rollover가 발생한 것입니다.
-- 같은 로컬 `config dir`에서 실행한 mutation이면 `tossctl order show <old-id>`가 local lineage cache를 통해 새 ref를 다시 찾을 수 있습니다.
-- lineage cache는 `<config dir>/trading-lineage.json`에 저장됩니다.
-- broker의 completed-history 반영이 늦어서 mutation 시점에 `current_order_id`를 못 잡은 cancel도, 나중에 `order show <old-id>`가 delayed completed-history row를 다시 조회해 같은 config dir 안에서 lineage cache를 갱신할 수 있습니다.
-- 다만 같은 조건의 canceled row가 여러 개면 추정하지 않고 실패하므로, 그런 경우에는 먼저 `orders completed`에서 새 ref를 확인해야 합니다.
-- 다른 머신이나 다른 `--config-dir`에서 실행한 주문까지 추적하는 기능은 아직 아닙니다.
+- `tossctl order show <old-id>`가 local lineage cache를 통해 새 ref를 추적합니다.
+- lineage cache: `<config dir>/trading-lineage.json`
+- 같은 조건의 canceled row가 여러 개면 수동 확인이 필요합니다.
 
 ## 개발
 
 ```bash
-make tidy
-make fmt
 make build
 make test
+make fmt
+make tidy
 ```
-
-`auth-helper`는 브라우저 로그인만 담당합니다. 토스증권 도메인 로직은 Go CLI 쪽에 남겨두고, 브라우저 자동화는 분리해 유지합니다.
 
 ## FAQ
 
-**누가 쓰기 좋은가요?**  
-토스증권 조회를 스크립트에 넣고 싶거나, 주문 전 확인과 제한된 주문 흐름을 CLI로 다루고 싶은 사용자에게 맞습니다.
+**바로 주문까지 가능한가요?**
+US/KR 지정가 매수/매도, US 소수점 매수, 당일 미체결 취소가 live 검증되어 있습니다. `amend`는 추가 검증이 필요합니다. 모든 거래는 `config.json`에서 해당 액션을 허용한 뒤에만 실행됩니다.
 
-**바로 주문까지 가능한가요?**  
-일부 범위만 베타로 지원합니다. 현재 live 검증이 끝난 건 `US buy limit / KRW / non-fractional` 기준의 `place`, 당일 pending `cancel`, `orders completed`, `order show <id>` 기반 상태 조회입니다. `cancel`과 `amend` 후 ref rollover는 same-machine local lineage cache로 다시 찾을 수 있고, delayed cancel rollover도 `order show <old-id>`가 later completed-history lookup으로 복구할 수 있습니다. 다만 ambiguous candidate가 생기면 수동 확인이 필요합니다. `order place`가 funding 분기에 막히면 CLI가 단계별 행동과 재시도 명령을 안내합니다. FX confirmation branch는 기본적으로 설명하고 멈추지만, `trading.dangerous_automation.accept_fx_consent=true`를 켜면 현재 확인된 경로에 한해 자동 진행할 수 있습니다. `amend` 자체는 아직 더 많은 live 검증이 필요합니다. 거래 기능은 먼저 `config.json`에서 해당 액션을 직접 허용해야 합니다.
+**공식 API인가요?**
+아닙니다. 웹 내부 API를 재사용하는 비공식 프로젝트입니다.
 
-**공식 API인가요?**  
-아닙니다. 토스증권 공식 제품이 아니고, 웹 내부 API를 재사용하는 비공식 프로젝트입니다.
-
-**왜 Playwright가 필요한가요?**  
-로그인 세션을 브라우저 흐름으로 확보하기 위해 필요합니다. 실제 조회와 거래 로직은 Go CLI 쪽에 구현되어 있습니다.
+**왜 Playwright가 필요한가요?**
+로그인 세션을 브라우저 흐름으로 확보하기 위해 필요합니다. 조회/거래 로직은 Go CLI에 구현되어 있습니다.
 
 ## 문서
 
@@ -381,26 +321,16 @@ make test
 - [`docs/trading/`](docs/trading/)
 - [`auth-helper/README.md`](auth-helper/README.md)
 
-## 상태 확인 예시
-
-```bash
-tossctl orders completed --market us --output json
-tossctl order show <order-id> --market us --output json
-```
-
 ## 로컬 저장 경로
 
-- config dir: `$(os.UserConfigDir)/tossctl`
-- config file: `<config dir>/config.json`
-- cache dir: `$(os.UserCacheDir)/tossctl`
-- session file: `<config dir>/session.json`
-- permission file: `<config dir>/trading-permission.json`
-- lineage file: `<config dir>/trading-lineage.json`
+| 경로 | 설명 |
+|------|------|
+| `<config dir>/config.json` | 거래 설정 |
+| `<config dir>/session.json` | 브라우저 세션 |
+| `<config dir>/trading-permission.json` | 임시 거래 권한 |
+| `<config dir>/trading-lineage.json` | 주문 ref 추적 |
 
-개발 중에는 아래 플래그로 경로를 덮어쓸 수 있습니다.
-
-- `--config-dir`
-- `--session-file`
+`--config-dir`, `--session-file` 플래그로 경로를 덮어쓸 수 있습니다.
 
 ## Contributing
 

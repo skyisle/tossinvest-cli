@@ -756,7 +756,7 @@ func buildAmendBody(order pendingOrderDetails, marketCode string, usdRate float6
 	targetPriceUSD := order.OrderUSDPrice
 	if priceKRW != nil {
 		targetPriceKRW = *priceKRW
-		targetPriceUSD = round4(targetPriceKRW / usdRate)
+		targetPriceUSD = round2(targetPriceKRW / usdRate)
 	}
 
 	payload := map[string]any{
@@ -826,7 +826,7 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 		priceValue = intent.Price
 		quantityValue = intent.Quantity
 	} else {
-		priceValue = round4(intent.Price / meta.ExchangeRate)
+		priceValue = round2(intent.Price / meta.ExchangeRate)
 		quantityValue = intent.Quantity
 	}
 
@@ -872,8 +872,8 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 	return json.Marshal(payload)
 }
 
-func round4(value float64) float64 {
-	return math.Round(value*10000) / 10000
+func round2(value float64) float64 {
+	return math.Round(value*100) / 100
 }
 
 func equalFloat(a, b float64) bool {

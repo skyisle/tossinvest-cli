@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-03-21
+
+### Fixed
+- US stock price rounding: `round4` → `round2` — prices now round to $0.01 (cent) precision instead of $0.0001, fixing `invalid.limit.price.scale` API errors
+- `placeIntentSupported()` now accepts USD currency mode for fractional orders
+
+### Changed
+- README rewritten — restructured around feature tables, added fractional/KR examples, removed outdated sections, cleaner config reference
+
 ## [0.3.0] - 2026-03-21
 
 ### Added
