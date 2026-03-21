@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/junghoonkye/tossinvest-cli/internal/domain"
 	"github.com/junghoonkye/tossinvest-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,30 @@ func newQuoteCmd(opts *rootOptions) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(getCmd)
+	batchCmd := &cobra.Command{
+		Use:   "batch <symbol> [symbol...]",
+		Short: "Fetch quotes for multiple symbols at once",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := newAppContext(opts)
+			if err != nil {
+				return err
+			}
+
+			var quotes []domain.Quote
+			for _, symbol := range args {
+				quote, err := app.client.GetQuote(cmd.Context(), symbol)
+				if err != nil {
+					return err
+				}
+				quotes = append(quotes, quote)
+			}
+
+			return output.WriteQuotes(cmd.OutOrStdout(), app.format, quotes)
+		},
+	}
+
+	cmd.AddCommand(getCmd, batchCmd)
 
 	return cmd
 }

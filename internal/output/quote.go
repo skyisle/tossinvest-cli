@@ -98,6 +98,47 @@ func writeQuoteTable(w io.Writer, quote domain.Quote) error {
 	return err
 }
 
+func WriteQuotes(w io.Writer, format Format, quotes []domain.Quote) error {
+	switch format {
+	case FormatJSON:
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(quotes)
+	case FormatCSV:
+		writer := csv.NewWriter(w)
+		if err := writer.Write([]string{
+			"symbol", "name", "market", "currency", "last", "change", "change_rate", "volume",
+		}); err != nil {
+			return err
+		}
+		for _, q := range quotes {
+			if err := writer.Write([]string{
+				q.Symbol, q.Name, q.Market, q.Currency,
+				formatFloat(q.Last), formatFloat(q.Change), formatFloat(q.ChangeRate), formatFloat(q.Volume),
+			}); err != nil {
+				return err
+			}
+		}
+		writer.Flush()
+		return writer.Error()
+	case FormatTable:
+		for _, q := range quotes {
+			sign := ""
+			if q.Change > 0 {
+				sign = "+"
+			}
+			if _, err := fmt.Fprintf(w, "%-8s %-20s %12s %s%s (%.2f%%)\n",
+				q.Symbol, q.Name, formatFloat(q.Last), sign, formatFloat(q.Change), q.ChangeRate*100,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported output format: %s", format)
+	}
+}
+
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
