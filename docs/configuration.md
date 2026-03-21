@@ -29,6 +29,7 @@ tossctl config init
     "place": false,
     "sell": false,
     "kr": false,
+    "fractional": false,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": false,
@@ -53,6 +54,10 @@ tossctl config init
 - `trading.kr`
   - `tossctl order place --market kr` 허용 여부
   - `trading.place`도 함께 켜야 국내주식 주문이 가능합니다
+- `trading.fractional`
+  - `tossctl order place --fractional --amount <KRW>` 허용 여부
+  - US 시장가 주문으로만 지원됩니다 (소수점 주문은 금액 기반)
+  - `trading.place`도 함께 켜야 소수점 주문이 가능합니다
 - `trading.cancel`
   - `tossctl order cancel` 허용 여부
 - `trading.amend`

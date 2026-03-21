@@ -22,6 +22,7 @@ type placeFlags struct {
 	orderType    string
 	quantity     float64
 	price        float64
+	amount       float64
 	currencyMode string
 	fractional   bool
 }
@@ -126,6 +127,7 @@ func newOrderPreviewCmd(opts *rootOptions) *cobra.Command {
 				OrderType:    flags.orderType,
 				Quantity:     flags.quantity,
 				Price:        flags.price,
+				Amount:       flags.amount,
 				CurrencyMode: flags.currencyMode,
 				Fractional:   flags.fractional,
 			})
@@ -161,6 +163,7 @@ func newOrderPlaceCmd(opts *rootOptions) *cobra.Command {
 				OrderType:    place.orderType,
 				Quantity:     place.quantity,
 				Price:        place.price,
+				Amount:       place.amount,
 				CurrencyMode: place.currencyMode,
 				Fractional:   place.fractional,
 			})
@@ -417,8 +420,9 @@ func bindPlaceFlags(cmd *cobra.Command, flags *placeFlags) {
 	cmd.Flags().StringVar(&flags.orderType, "type", flags.orderType, "Order type: limit or market")
 	cmd.Flags().Float64Var(&flags.quantity, "qty", 0, "Order quantity")
 	cmd.Flags().Float64Var(&flags.price, "price", 0, "Order price for limit orders")
+	cmd.Flags().Float64Var(&flags.amount, "amount", 0, "Order amount in KRW for fractional orders")
 	cmd.Flags().StringVar(&flags.currencyMode, "currency-mode", flags.currencyMode, "Currency mode")
-	cmd.Flags().BoolVar(&flags.fractional, "fractional", false, "Whether the order is fractional")
+	cmd.Flags().BoolVar(&flags.fractional, "fractional", false, "Whether the order is fractional (US market order, amount-based)")
 	if err := cmd.MarkFlagRequired("symbol"); err != nil {
 		panic(err)
 	}

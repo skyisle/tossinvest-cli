@@ -79,6 +79,33 @@ func TestNormalizePlaceKRSymbolWithKRMarketSucceeds(t *testing.T) {
 	}
 }
 
+func TestNormalizePlaceFractionalAutoMarketOrder(t *testing.T) {
+	intent, err := NormalizePlace(PlaceInput{Symbol: "TSLL", Side: "buy", Amount: 18000, Fractional: true})
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if intent.OrderType != "market" {
+		t.Fatalf("expected market, got %q", intent.OrderType)
+	}
+	if intent.Quantity != 0 {
+		t.Fatalf("expected quantity 0, got %v", intent.Quantity)
+	}
+}
+
+func TestNormalizePlaceFractionalKRRejects(t *testing.T) {
+	_, err := NormalizePlace(PlaceInput{Symbol: "290080", Market: "kr", Side: "buy", Amount: 8000, Fractional: true})
+	if err == nil {
+		t.Fatal("expected error for KR fractional")
+	}
+}
+
+func TestNormalizePlaceFractionalRequiresAmount(t *testing.T) {
+	_, err := NormalizePlace(PlaceInput{Symbol: "TSLL", Side: "buy", Fractional: true})
+	if err == nil {
+		t.Fatal("expected error when amount is zero")
+	}
+}
+
 func TestInferMarketFromStockCode(t *testing.T) {
 	cases := []struct {
 		code   string

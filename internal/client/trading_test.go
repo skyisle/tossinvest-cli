@@ -471,6 +471,37 @@ func TestBuildPlaceBodyKRRawKRWPrice(t *testing.T) {
 	}
 }
 
+func TestBuildPlaceBodyFractionalMarketOrder(t *testing.T) {
+	intent := orderintent.PlaceIntent{
+		Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market",
+		Amount: 18000, CurrencyMode: "KRW", Fractional: true,
+	}
+	meta := stockPriceMetadata{Close: 12.12, CloseKRW: 18000, ExchangeRate: 1500}
+	body, err := buildPlaceBody("US20220809012", "NSQ", intent, meta, true)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload["price"] != float64(0) {
+		t.Fatalf("expected price 0, got %v", payload["price"])
+	}
+	if payload["quantity"] != float64(0) {
+		t.Fatalf("expected quantity 0, got %v", payload["quantity"])
+	}
+	if payload["orderAmount"] != float64(18000) {
+		t.Fatalf("expected orderAmount 18000, got %v", payload["orderAmount"])
+	}
+	if payload["orderPriceType"] != "01" {
+		t.Fatalf("expected orderPriceType 01, got %v", payload["orderPriceType"])
+	}
+	if payload["isFractionalOrder"] != true {
+		t.Fatal("expected isFractionalOrder true")
+	}
+}
+
 func TestPlacePendingOrderSendsXOrderKeyOnCreate(t *testing.T) {
 	t.Parallel()
 

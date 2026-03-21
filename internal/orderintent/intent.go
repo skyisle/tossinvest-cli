@@ -17,6 +17,7 @@ type PlaceIntent struct {
 	OrderType    string  `json:"order_type"`
 	Quantity     float64 `json:"quantity"`
 	Price        float64 `json:"price,omitempty"`
+	Amount       float64 `json:"amount,omitempty"`
 	CurrencyMode string  `json:"currency_mode"`
 	Fractional   bool    `json:"fractional"`
 }
@@ -43,6 +44,7 @@ type PlaceInput struct {
 	OrderType    string
 	Quantity     float64
 	Price        float64
+	Amount       float64
 	CurrencyMode string
 	Fractional   bool
 }
@@ -57,19 +59,31 @@ func NormalizePlace(input PlaceInput) (PlaceIntent, error) {
 		return PlaceIntent{}, fmt.Errorf("side is required")
 	}
 
+	orderType := normalizeDefault(input.OrderType, "limit")
+	fractional := input.Fractional
+
+	// Fractional orders must be market orders
+	if fractional && orderType == "limit" {
+		orderType = "market"
+	}
+
 	intent := PlaceIntent{
 		Symbol:       symbol,
 		Market:       normalizeDefault(input.Market, "us"),
 		Side:         side,
-		OrderType:    normalizeDefault(input.OrderType, "limit"),
+		OrderType:    orderType,
 		Quantity:     input.Quantity,
 		Price:        input.Price,
+		Amount:       input.Amount,
 		CurrencyMode: normalizeCurrencyMode(input.CurrencyMode),
-		Fractional:   input.Fractional,
+		Fractional:   fractional,
 	}
 
 	if intent.Market == "us" && looksLikeKRSymbol(intent.Symbol) {
 		return PlaceIntent{}, fmt.Errorf("symbol %q looks like a Korean stock code; use --market kr", input.Symbol)
+	}
+	if intent.Fractional && intent.Market != "us" {
+		return PlaceIntent{}, fmt.Errorf("fractional orders are only supported for US stocks")
 	}
 	if intent.Side != "buy" && intent.Side != "sell" {
 		return PlaceIntent{}, fmt.Errorf("unsupported side %q; expected buy or sell", input.Side)
@@ -77,14 +91,23 @@ func NormalizePlace(input PlaceInput) (PlaceIntent, error) {
 	if intent.OrderType != "limit" && intent.OrderType != "market" {
 		return PlaceIntent{}, fmt.Errorf("unsupported order type %q; expected limit or market", input.OrderType)
 	}
-	if intent.Quantity <= 0 {
-		return PlaceIntent{}, fmt.Errorf("quantity must be greater than zero")
-	}
-	if intent.OrderType == "limit" && intent.Price <= 0 {
-		return PlaceIntent{}, fmt.Errorf("price must be greater than zero for limit orders")
-	}
-	if intent.OrderType == "market" {
+	if intent.Fractional {
+		// Fractional: amount-based, no quantity/price required
+		if intent.Amount <= 0 {
+			return PlaceIntent{}, fmt.Errorf("amount must be greater than zero for fractional orders")
+		}
+		intent.Quantity = 0
 		intent.Price = 0
+	} else {
+		if intent.Quantity <= 0 {
+			return PlaceIntent{}, fmt.Errorf("quantity must be greater than zero")
+		}
+		if intent.OrderType == "limit" && intent.Price <= 0 {
+			return PlaceIntent{}, fmt.Errorf("price must be greater than zero for limit orders")
+		}
+		if intent.OrderType == "market" {
+			intent.Price = 0
+		}
 	}
 
 	return intent, nil
@@ -134,6 +157,7 @@ func CanonicalPlace(intent PlaceIntent) string {
 		"market":        intent.Market,
 		"order_type":    intent.OrderType,
 		"price":         formatFloat(intent.Price),
+		"amount":        formatFloat(intent.Amount),
 		"quantity":      formatFloat(intent.Quantity),
 		"side":          intent.Side,
 		"symbol":        intent.Symbol,

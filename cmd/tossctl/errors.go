@@ -41,7 +41,7 @@ func userFacingCommandError(err error) error {
 		return fmt.Errorf("permission gate passed, but live trading mutation wiring is not implemented yet")
 	}
 	if errors.Is(err, trading.ErrPlaceUnsupported) {
-		return fmt.Errorf("live place currently supports only `--market us|kr --type limit --currency-mode KRW` without `--fractional`")
+		return fmt.Errorf("live place supports `--market us|kr --type limit` and `--market us --fractional` (market order) in KRW")
 	}
 	if errors.Is(err, trading.ErrPlaceNotReconciled) {
 		return fmt.Errorf("place mutation returned, but the new order was not found in pending reconciliation; check `tossctl orders list` and completed history before retrying")

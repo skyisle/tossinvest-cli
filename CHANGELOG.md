@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-21
+
+### Added
+- **Fractional (소수점) order support** — `tossctl order place --symbol TSLL --fractional --amount 18000`
+  - US market only, market orders (시장가), amount-based (금액 기반)
+  - `trading.fractional` config toggle (default: false)
+  - `--amount` flag for specifying KRW amount
+  - `--fractional` flag auto-selects market order type
+- Fractional policy gate in `Place()` with "disabled by config" error
+- `buildPlaceBody` fractional branch: `price=0, quantity=0, orderAmount=<KRW>, orderPriceType=01, isFractionalOrder=true`
+- `placeIntentSupported()` now accepts fractional orders (US + market only)
+- `NormalizePlace` validates fractional constraints (US only, amount required, auto market order)
+- 10 new tests: fractional capability, policy, preview, payload, orderintent validation
+- API compatibility verified via prepare dry-run (422 = payload accepted, insufficient balance)
+
 ## [0.2.3] - 2026-03-21
 
 ### Removed

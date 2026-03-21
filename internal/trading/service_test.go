@@ -415,6 +415,70 @@ func TestPreviewPlaceSellEnabled(t *testing.T) {
 	}
 }
 
+func TestPlaceIntentSupportedAcceptsFractionalMarketUS(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market", Amount: 18000, CurrencyMode: "KRW", Fractional: true}
+	if !placeIntentSupported(intent) {
+		t.Fatal("expected true for US fractional market order")
+	}
+}
+
+func TestPlaceIntentSupportedRejectsFractionalLimit(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "limit", Price: 500, CurrencyMode: "KRW", Fractional: true}
+	if placeIntentSupported(intent) {
+		t.Fatal("expected false for fractional limit order")
+	}
+}
+
+func TestPlaceIntentSupportedRejectsFractionalKR(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Amount: 8000, CurrencyMode: "KRW", Fractional: true}
+	if placeIntentSupported(intent) {
+		t.Fatal("expected false for KR fractional order")
+	}
+}
+
+func TestFractionalPlaceFailsWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	ps.Grant(context.Background(), 5*time.Minute)
+	svc := NewService(ps, config.Trading{Place: true, Fractional: false, AllowLiveOrderActions: true}, nil)
+	intent := orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market", Amount: 18000, CurrencyMode: "KRW", Fractional: true}
+	_, err := svc.Place(context.Background(), intent, ExecuteOptions{Execute: true, DangerouslySkipPermissions: true, Confirm: svc.PreviewPlace(intent).ConfirmToken})
+	var disabled *DisabledActionError
+	if !errors.As(err, &disabled) || disabled.Action != "fractional" {
+		t.Fatalf("expected fractional disabled, got %v", err)
+	}
+}
+
+func TestFractionalPlaceCallsBroker(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	ps.Grant(context.Background(), 5*time.Minute)
+	broker := &brokerStub{}
+	svc := NewService(ps, config.Trading{Place: true, Fractional: true, AllowLiveOrderActions: true}, broker)
+	intent := orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market", Amount: 18000, CurrencyMode: "KRW", Fractional: true}
+	result, err := svc.Place(context.Background(), intent, ExecuteOptions{Execute: true, DangerouslySkipPermissions: true, Confirm: svc.PreviewPlace(intent).ConfirmToken})
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if !broker.placeCalled {
+		t.Fatal("expected broker called")
+	}
+	if result.Status != "accepted_pending" {
+		t.Fatalf("expected accepted_pending, got %q", result.Status)
+	}
+}
+
+func TestPreviewPlaceFractionalDisabled(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	svc := NewService(ps, config.Trading{Place: true, Fractional: false, AllowLiveOrderActions: true}, nil)
+	intent := orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market", Amount: 18000, CurrencyMode: "KRW", Fractional: true}
+	preview := svc.PreviewPlace(intent)
+	if preview.MutationReady {
+		t.Fatal("expected MutationReady false")
+	}
+}
+
 func TestPlaceIntentSupportedAcceptsKR(t *testing.T) {
 	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
 		Symbol:       "290080",

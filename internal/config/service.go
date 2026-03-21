@@ -24,6 +24,7 @@ type Trading struct {
 	Place                 bool                `json:"place"`
 	Sell                  bool                `json:"sell"`
 	KR                    bool                `json:"kr"`
+	Fractional            bool                `json:"fractional"`
 	Cancel                bool                `json:"cancel"`
 	Amend                 bool                `json:"amend"`
 	AllowLiveOrderActions bool                `json:"allow_live_order_actions"`
@@ -43,6 +44,9 @@ func (t Trading) EnabledActions() []string {
 	}
 	if t.KR {
 		enabled = append(enabled, "kr")
+	}
+	if t.Fractional {
+		enabled = append(enabled, "fractional")
 	}
 	if t.Cancel {
 		enabled = append(enabled, "cancel")
@@ -102,6 +106,7 @@ type rawTrading struct {
 	Place                 bool                 `json:"place"`
 	Sell                  bool                 `json:"sell"`
 	KR                    bool                 `json:"kr"`
+	Fractional            bool                 `json:"fractional"`
 	Cancel                bool                 `json:"cancel"`
 	Amend                 bool                 `json:"amend"`
 	AllowLiveOrderActions *bool                `json:"allow_live_order_actions"`
@@ -199,6 +204,7 @@ func (s *Service) load() (File, bool, legacyMetadata, error) {
 	cfg.Trading.Place = raw.Trading.Place
 	cfg.Trading.Sell = raw.Trading.Sell
 	cfg.Trading.KR = raw.Trading.KR
+	cfg.Trading.Fractional = raw.Trading.Fractional
 	cfg.Trading.Cancel = raw.Trading.Cancel
 	cfg.Trading.Amend = raw.Trading.Amend
 

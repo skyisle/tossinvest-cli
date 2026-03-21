@@ -135,6 +135,7 @@ tossctl config show
     "place": false,
     "sell": false,
     "kr": false,
+    "fractional": false,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": false,
@@ -168,6 +169,7 @@ tossctl config show
 - 제한된 거래 베타
   - `미국주식`
   - `매수` / `매도` (매도는 `trading.sell=true` 필요)
+  - `소수점 주문` (US 시장가, `trading.fractional=true` 필요)
   - `지정가`
   - `KRW`
   - `비소수점`
@@ -190,7 +192,7 @@ tossctl config show
 
 - `order amend` 재검증
 - `amend` interactive auth branch 정리
-- `시장가`, `소수점 주문`
+- `시장가` (비소수점)
 
 ## 이 프로젝트가 하지 않는 것
 

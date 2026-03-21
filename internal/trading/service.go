@@ -49,7 +49,7 @@ func NewService(permissionService *permissions.Service, policy config.Trading, b
 func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	canonical := orderintent.CanonicalPlace(intent)
 	warnings := []string{
-		"Live place currently supports US/KR buy/sell limit orders in KRW, non-fractional mode.",
+		"Live place supports US/KR buy/sell limit orders and US fractional (market) orders in KRW.",
 		"US orders may still require funding, FX consent, or product-risk acknowledgement before submission.",
 	}
 	liveReady := placeIntentSupported(intent)
@@ -62,6 +62,9 @@ func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	if intent.Side == "sell" && !s.policy.Sell {
 		warnings = append(warnings, "Config currently disables `order place --side sell`.")
 	}
+	if intent.Fractional && !s.policy.Fractional {
+		warnings = append(warnings, "Config currently disables `order place --fractional`.")
+	}
 	if !s.policy.AllowLiveOrderActions {
 		warnings = append(warnings, "Config currently disables live order actions.")
 	}
@@ -71,6 +74,9 @@ func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	}
 	if intent.Side == "sell" {
 		mutationReady = mutationReady && s.policy.Sell
+	}
+	if intent.Fractional {
+		mutationReady = mutationReady && s.policy.Fractional
 	}
 	return Preview{
 		Kind:          "place",
@@ -136,7 +142,11 @@ func (s *Service) Place(ctx context.Context, intent orderintent.PlaceIntent, opt
 	if intent.Side == "sell" && !s.policy.Sell {
 		return MutationResult{}, &DisabledActionError{Action: "sell"}
 	}
-	// 4. execution guard (--execute, permissions, confirm)
+	// 4. fractional policy
+	if intent.Fractional && !s.policy.Fractional {
+		return MutationResult{}, &DisabledActionError{Action: "fractional"}
+	}
+	// 5. execution guard (--execute, permissions, confirm)
 	if err := s.guard(ctx, ActionPlace, s.PreviewPlace(intent), opts); err != nil {
 		return MutationResult{}, err
 	}
@@ -219,8 +229,15 @@ func (s *Service) requireActionEnabled(action Action) error {
 }
 
 func placeIntentSupported(intent orderintent.PlaceIntent) bool {
-	return (intent.Market == "us" || intent.Market == "kr") &&
-		intent.OrderType == "limit" &&
-		intent.CurrencyMode == "KRW" &&
-		!intent.Fractional
+	if intent.CurrencyMode != "KRW" {
+		return false
+	}
+	if intent.Market != "us" && intent.Market != "kr" {
+		return false
+	}
+	if intent.Fractional {
+		// fractional orders require US market + market order type
+		return intent.Market == "us" && intent.OrderType == "market"
+	}
+	return intent.OrderType == "limit"
 }

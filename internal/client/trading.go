@@ -812,10 +812,22 @@ func buildCancelBodies(order pendingOrderDetails) ([]byte, []byte, error) {
 
 func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceIntent, meta stockPriceMetadata, withOrderKey bool) ([]byte, error) {
 	var priceValue float64
-	if intent.Market == "kr" {
-		priceValue = intent.Price // raw KRW for KR stocks
+	var quantityValue float64
+	var orderAmount float64
+	orderPriceType := "00" // limit
+
+	if intent.Fractional {
+		// Fractional: market order, amount-based
+		priceValue = 0
+		quantityValue = 0
+		orderAmount = math.Round(intent.Amount)
+		orderPriceType = "01" // market
+	} else if intent.Market == "kr" {
+		priceValue = intent.Price
+		quantityValue = intent.Quantity
 	} else {
-		priceValue = round4(intent.Price / meta.ExchangeRate) // KRW→USD for US stocks
+		priceValue = round4(intent.Price / meta.ExchangeRate)
+		quantityValue = intent.Quantity
 	}
 
 	payload := map[string]any{
@@ -824,14 +836,18 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 		"currencyMode":           intent.CurrencyMode,
 		"tradeType":              intent.Side,
 		"price":                  priceValue,
-		"quantity":               intent.Quantity,
-		"orderAmount":            0,
-		"orderPriceType":         "00",
+		"quantity":               quantityValue,
+		"orderAmount":            orderAmount,
+		"orderPriceType":         orderPriceType,
 		"agreedOver100Million":   false,
 		"marginTrading":          false,
 		"max":                    false,
 		"isReservationOrder":     false,
 		"openPriceSinglePriceYn": false,
+	}
+
+	if intent.Fractional {
+		payload["isFractionalOrder"] = true
 	}
 
 	// US stocks need allowAutoExchange for KRW→USD conversion

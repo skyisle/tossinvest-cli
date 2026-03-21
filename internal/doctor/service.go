@@ -103,7 +103,7 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 			Name:    "trading_scope",
 			Status:  CheckInfo,
 			Summary: "trading support is intentionally narrow and still beta",
-			Detail:  "Currently validated for US/KR buy/sell limit / KRW / non-fractional, plus same-day pending cancel. Sell requires `trading.sell=true`, KR requires `trading.kr=true` in config. Amend still needs more live verification.",
+			Detail:  "Currently validated for US/KR buy/sell limit + US fractional (market) orders in KRW, plus same-day pending cancel. Sell requires `trading.sell=true`, KR requires `trading.kr=true`, fractional requires `trading.fractional=true`. Amend still needs more live verification.",
 		},
 	}
 
