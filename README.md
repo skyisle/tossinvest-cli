@@ -88,7 +88,7 @@ Only use `tossctl order preview` before any trading mutation.
 ## 현재 상태
 
 - 조회 기능은 일상적인 스크립트/자동화 용도로 바로 쓸 수 있습니다.
-- 거래 기능은 `US buy/sell limit / KRW / non-fractional` 슬라이스에 한해 live 검증이 쌓여 있습니다. sell은 `trading.sell=true` 추가 설정이 필요합니다.
+- 거래 기능은 `US/KR buy/sell limit / KRW / non-fractional` 슬라이스에 한해 live 검증이 쌓여 있습니다. sell은 `trading.sell=true`, 국내주식은 `trading.kr=true` 추가 설정이 필요합니다.
 - 기본 동작은 안전 우선입니다.
   - config 허용
   - temporary permission
@@ -134,6 +134,7 @@ tossctl config show
     "grant": false,
     "place": false,
     "sell": false,
+    "kr": false,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": false,
@@ -146,7 +147,7 @@ tossctl config show
 }
 ```
 
-`grant`, `place`, `sell`, `cancel`, `amend`는 기능별 허용 여부입니다. `sell`은 `place`와 함께 켜야 매도 주문이 가능합니다. `allow_live_order_actions`는 실제 계좌에 영향을 주는 주문 액션 자체를 허용할지 정하고, `dangerous_automation`은 어떤 위험한 브로커 분기를 자동 진행할 수 있게 둘지 정합니다.
+`grant`, `place`, `sell`, `kr`, `cancel`, `amend`는 기능별 허용 여부입니다. `sell`은 `place`와 함께 켜야 매도 주문이 가능합니다. `kr`은 `place`와 함께 켜야 국내주식 주문이 가능합니다. `allow_live_order_actions`는 실제 계좌에 영향을 주는 주문 액션 자체를 허용할지 정하고, `dangerous_automation`은 어떤 위험한 브로커 분기를 자동 진행할 수 있게 둘지 정합니다.
 
 현재 실제 handler가 연결된 dangerous automation은 아래 하나입니다.
 
@@ -176,7 +177,7 @@ tossctl config show
 ### live 검증이 끝난 범위
 
 - `order preview`
-- `order place` for `US buy/sell limit / KRW / non-fractional` (sell requires `trading.sell=true`)
+- `order place` for `US/KR buy/sell limit / KRW / non-fractional` (sell requires `trading.sell=true`, KR requires `trading.kr=true`)
 - `order cancel` for same-day pending orders
 - `orders completed`
 - `order show <id>`
@@ -189,7 +190,7 @@ tossctl config show
 
 - `order amend` 재검증
 - `amend` interactive auth branch 정리
-- `시장가`, `국내주식`, `소수점 주문`
+- `시장가`, `소수점 주문`
 
 ## 이 프로젝트가 하지 않는 것
 
@@ -278,6 +279,7 @@ tossctl order permissions revoke
 tossctl config init
 # edit config.json and set trading.grant/place/allow_live_order_actions to true
 # for sell orders, also set trading.sell to true
+# for KR stocks, also set trading.kr to true
 
 tossctl order preview \
   --symbol TSLL \

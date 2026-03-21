@@ -415,6 +415,208 @@ func TestPreviewPlaceSellEnabled(t *testing.T) {
 	}
 }
 
+func TestPlaceIntentSupportedAcceptsKR(t *testing.T) {
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+	if !placeIntentSupported(intent) {
+		t.Fatal("expected placeIntentSupported to return true for kr intent")
+	}
+}
+
+func TestKRPlaceFailsWhenKRDisabledInConfig(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
+		t.Fatalf("Grant returned error: %v", err)
+	}
+
+	broker := &brokerStub{}
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		KR:                    false,
+		AllowLiveOrderActions: true,
+	}, broker)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	_, err = service.Place(context.Background(), intent, ExecuteOptions{
+		Execute:                    true,
+		DangerouslySkipPermissions: true,
+		Confirm:                    service.PreviewPlace(intent).ConfirmToken,
+	})
+	var disabled *DisabledActionError
+	if !errors.As(err, &disabled) || disabled.Action != "kr" {
+		t.Fatalf("expected kr action to be disabled, got %v", err)
+	}
+	if broker.placeCalled {
+		t.Fatal("broker should not have been called when kr is disabled")
+	}
+}
+
+func TestKRPlaceCallsBrokerWhenKREnabled(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+	if _, err := permissionService.Grant(context.Background(), 5*time.Minute); err != nil {
+		t.Fatalf("Grant returned error: %v", err)
+	}
+
+	broker := &brokerStub{}
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		KR:                    true,
+		AllowLiveOrderActions: true,
+	}, broker)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	result, err := service.Place(context.Background(), intent, ExecuteOptions{
+		Execute:                    true,
+		DangerouslySkipPermissions: true,
+		Confirm:                    service.PreviewPlace(intent).ConfirmToken,
+	})
+	if err != nil {
+		t.Fatalf("Place returned error: %v", err)
+	}
+	if !broker.placeCalled {
+		t.Fatal("expected broker place to be called for kr")
+	}
+	if result.Status != "accepted_pending" {
+		t.Fatalf("expected accepted_pending, got %q", result.Status)
+	}
+}
+
+func TestPlacePolicyChecksBeforeGuard(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+	// NO grant — guard() would fail with ErrExecuteRequired etc.
+	// But policy check should catch it first.
+
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		KR:                    false,
+		AllowLiveOrderActions: true,
+	}, nil)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	// Without --execute, guard would return ErrExecuteRequired.
+	// But kr policy should be checked BEFORE guard, so we get DisabledActionError.
+	_, err = service.Place(context.Background(), intent, ExecuteOptions{})
+	var disabled *DisabledActionError
+	if !errors.As(err, &disabled) || disabled.Action != "kr" {
+		t.Fatalf("expected kr disabled error BEFORE guard, got %v", err)
+	}
+}
+
+func TestPreviewPlaceKRDisabled(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		KR:                    false,
+		AllowLiveOrderActions: true,
+	}, nil)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	preview := service.PreviewPlace(intent)
+	if preview.MutationReady {
+		t.Fatal("expected MutationReady to be false when kr is disabled")
+	}
+	found := false
+	for _, w := range preview.Warnings {
+		if w == "Config currently disables `order place --market kr`." {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected kr-disabled warning in preview, got %v", preview.Warnings)
+	}
+}
+
+func TestPreviewPlaceKREnabled(t *testing.T) {
+	dir := t.TempDir()
+	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))
+
+	service := NewService(permissionService, config.Trading{
+		Place:                 true,
+		KR:                    true,
+		AllowLiveOrderActions: true,
+	}, nil)
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	preview := service.PreviewPlace(intent)
+	if !preview.LiveReady {
+		t.Fatal("expected LiveReady to be true for kr")
+	}
+	if !preview.MutationReady {
+		t.Fatal("expected MutationReady to be true when kr is enabled")
+	}
+}
+
 func TestPlaceFailsWhenDangerousExecuteIsDisabledInConfig(t *testing.T) {
 	dir := t.TempDir()
 	permissionService := permissions.NewService(filepath.Join(dir, "permission.json"))

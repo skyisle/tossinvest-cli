@@ -46,6 +46,58 @@ func TestNormalizeCancelRequiresSymbol(t *testing.T) {
 	}
 }
 
+func TestNormalizePlaceKRSymbolWithUSMarketErrors(t *testing.T) {
+	_, err := NormalizePlace(PlaceInput{
+		Symbol:       "005930",
+		Market:       "us",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        200000,
+		CurrencyMode: "KRW",
+	})
+	if err == nil {
+		t.Fatal("expected error for KR symbol with us market")
+	}
+}
+
+func TestNormalizePlaceKRSymbolWithKRMarketSucceeds(t *testing.T) {
+	intent, err := NormalizePlace(PlaceInput{
+		Symbol:       "005930",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        200000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+	if intent.Market != "kr" {
+		t.Fatalf("expected market kr, got %q", intent.Market)
+	}
+}
+
+func TestInferMarketFromStockCode(t *testing.T) {
+	cases := []struct {
+		code   string
+		expect string
+	}{
+		{"A290080", "kr"},
+		{"A005930", "kr"},
+		{"US20220809012", "us"},
+		{"AMX0240221001", "us"},
+		{"NAS0241211006", "us"},
+	}
+	for _, tc := range cases {
+		got := InferMarketFromStockCode(tc.code)
+		if got != tc.expect {
+			t.Errorf("InferMarketFromStockCode(%q) = %q, want %q", tc.code, got, tc.expect)
+		}
+	}
+}
+
 func TestConfirmTokenIsDeterministic(t *testing.T) {
 	canonical := CanonicalPlace(PlaceIntent{
 		Symbol:       "TSLL",

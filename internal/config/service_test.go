@@ -185,6 +185,86 @@ func TestEnabledActionsExcludesSellWhenFalse(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsKRToFalseWhenFieldMissing(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	data := []byte(`{
+  "schema_version": 2,
+  "trading": {
+    "grant": true,
+    "place": true,
+    "sell": true,
+    "cancel": false,
+    "amend": false,
+    "allow_live_order_actions": true,
+    "dangerous_automation": {
+      "complete_trade_auth": false,
+      "accept_product_ack": false,
+      "accept_fx_consent": false
+    }
+  }
+}`)
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	service := NewService(configPath)
+	cfg, err := service.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Trading.KR {
+		t.Fatal("expected KR to default to false when field is missing from config")
+	}
+}
+
+func TestLoadParsesKRTrue(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	data := []byte(`{
+  "schema_version": 2,
+  "trading": {
+    "grant": true,
+    "place": true,
+    "sell": true,
+    "kr": true,
+    "cancel": false,
+    "amend": false,
+    "allow_live_order_actions": true,
+    "dangerous_automation": {
+      "complete_trade_auth": false,
+      "accept_product_ack": false,
+      "accept_fx_consent": false
+    }
+  }
+}`)
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	service := NewService(configPath)
+	cfg, err := service.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Trading.KR {
+		t.Fatal("expected KR to be true")
+	}
+}
+
+func TestEnabledActionsIncludesKR(t *testing.T) {
+	trading := Trading{Place: true, KR: true}
+	enabled := trading.EnabledActions()
+	found := false
+	for _, action := range enabled {
+		if action == "kr" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected EnabledActions to include 'kr', got %v", enabled)
+	}
+}
+
 func TestInitCreatesDangerousAutomationDefaults(t *testing.T) {
 	service := NewService(filepath.Join(t.TempDir(), "config.json"))
 

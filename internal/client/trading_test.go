@@ -427,6 +427,50 @@ func TestBuildPlaceBodySellTradeType(t *testing.T) {
 	}
 }
 
+func TestBuildPlaceBodyKRRawKRWPrice(t *testing.T) {
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        8000,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	meta := stockPriceMetadata{
+		Close:        8355,
+		CloseKRW:     8355,
+		ExchangeRate: 1,
+	}
+
+	body, err := buildPlaceBody("A290080", "KSP", intent, meta, true)
+	if err != nil {
+		t.Fatalf("buildPlaceBody returned error: %v", err)
+	}
+
+	// KR: raw KRW price, no allowAutoExchange
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if payload["price"] != float64(8000) {
+		t.Fatalf("expected raw KRW price 8000, got %v", payload["price"])
+	}
+	if _, hasAutoExchange := payload["allowAutoExchange"]; hasAutoExchange {
+		t.Fatal("expected no allowAutoExchange field for KR orders")
+	}
+	if payload["market"] != "KSP" {
+		t.Fatalf("expected market KSP, got %v", payload["market"])
+	}
+	if payload["tradeType"] != "buy" {
+		t.Fatalf("expected tradeType buy, got %v", payload["tradeType"])
+	}
+}
+
 func TestPlacePendingOrderSendsXOrderKeyOnCreate(t *testing.T) {
 	t.Parallel()
 

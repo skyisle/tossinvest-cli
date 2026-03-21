@@ -49,12 +49,15 @@ func NewService(permissionService *permissions.Service, policy config.Trading, b
 func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	canonical := orderintent.CanonicalPlace(intent)
 	warnings := []string{
-		"Live place currently supports US buy/sell limit orders in KRW, non-fractional mode.",
+		"Live place currently supports US/KR buy/sell limit orders in KRW, non-fractional mode.",
 		"US orders may still require funding, FX consent, or product-risk acknowledgement before submission.",
 	}
 	liveReady := placeIntentSupported(intent)
 	if !s.policy.Place {
 		warnings = append(warnings, "Config currently disables `order place`.")
+	}
+	if intent.Market == "kr" && !s.policy.KR {
+		warnings = append(warnings, "Config currently disables `order place --market kr`.")
 	}
 	if intent.Side == "sell" && !s.policy.Sell {
 		warnings = append(warnings, "Config currently disables `order place --side sell`.")
@@ -63,6 +66,9 @@ func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 		warnings = append(warnings, "Config currently disables live order actions.")
 	}
 	mutationReady := liveReady && s.policy.Place && s.policy.AllowLiveOrderActions
+	if intent.Market == "kr" {
+		mutationReady = mutationReady && s.policy.KR
+	}
 	if intent.Side == "sell" {
 		mutationReady = mutationReady && s.policy.Sell
 	}
@@ -118,15 +124,23 @@ func (s *Service) PreviewAmend(intent orderintent.AmendIntent) Preview {
 }
 
 func (s *Service) Place(ctx context.Context, intent orderintent.PlaceIntent, opts ExecuteOptions) (MutationResult, error) {
-	if err := s.guard(ctx, ActionPlace, s.PreviewPlace(intent), opts); err != nil {
-		return MutationResult{}, err
-	}
+	// 1. capability check
 	if !placeIntentSupported(intent) {
 		return MutationResult{}, ErrPlaceUnsupported
 	}
+	// 2. market policy
+	if intent.Market == "kr" && !s.policy.KR {
+		return MutationResult{}, &DisabledActionError{Action: "kr"}
+	}
+	// 3. side policy
 	if intent.Side == "sell" && !s.policy.Sell {
 		return MutationResult{}, &DisabledActionError{Action: "sell"}
 	}
+	// 4. execution guard (--execute, permissions, confirm)
+	if err := s.guard(ctx, ActionPlace, s.PreviewPlace(intent), opts); err != nil {
+		return MutationResult{}, err
+	}
+	// 5. broker call
 	if s.broker == nil {
 		return MutationResult{}, ErrLiveMutationPending
 	}
@@ -205,7 +219,7 @@ func (s *Service) requireActionEnabled(action Action) error {
 }
 
 func placeIntentSupported(intent orderintent.PlaceIntent) bool {
-	return intent.Market == "us" &&
+	return (intent.Market == "us" || intent.Market == "kr") &&
 		intent.OrderType == "limit" &&
 		intent.CurrencyMode == "KRW" &&
 		!intent.Fractional

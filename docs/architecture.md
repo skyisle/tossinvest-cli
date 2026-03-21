@@ -15,7 +15,7 @@
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
 - `orders completed`, `order show <id>` 기반 주문 상태 조회
 - 거래 베타
-  - `US buy/sell limit` (sell은 `trading.sell=true` 추가 설정 필요)
+  - `US/KR buy/sell limit` (sell은 `trading.sell=true`, KR은 `trading.kr=true` 추가 설정 필요)
   - `KRW`
   - `non-fractional`
   - `place`

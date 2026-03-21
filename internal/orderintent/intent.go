@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -67,6 +68,9 @@ func NormalizePlace(input PlaceInput) (PlaceIntent, error) {
 		Fractional:   input.Fractional,
 	}
 
+	if intent.Market == "us" && looksLikeKRSymbol(intent.Symbol) {
+		return PlaceIntent{}, fmt.Errorf("symbol %q looks like a Korean stock code; use --market kr", input.Symbol)
+	}
 	if intent.Side != "buy" && intent.Side != "sell" {
 		return PlaceIntent{}, fmt.Errorf("unsupported side %q; expected buy or sell", input.Side)
 	}
@@ -193,4 +197,22 @@ func canonicalString(kind string, fields map[string]string) string {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+var krSymbolPattern = regexp.MustCompile(`^\d{6}$`)
+
+func looksLikeKRSymbol(symbol string) bool {
+	return krSymbolPattern.MatchString(symbol)
+}
+
+// InferMarketFromStockCode infers the market from a stock code pattern.
+// Korean stock codes start with "A" followed by digits.
+func InferMarketFromStockCode(code string) string {
+	if strings.HasPrefix(code, "A") && len(code) == 7 {
+		rest := code[1:]
+		if krSymbolPattern.MatchString(rest) {
+			return "kr"
+		}
+	}
+	return "us"
 }

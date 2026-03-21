@@ -29,6 +29,10 @@
           "type": "boolean",
           "default": false
         },
+        "kr": {
+          "type": "boolean",
+          "default": false
+        },
         "cancel": {
           "type": "boolean",
           "default": false

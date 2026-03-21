@@ -119,15 +119,24 @@ func (c *Client) PlacePendingOrder(ctx context.Context, intent orderintent.Place
 	if err != nil {
 		return tradingflow.MutationResult{}, err
 	}
-	usdRate, err := c.getUSDBaseExchangeRate(ctx)
-	if err != nil {
-		return tradingflow.MutationResult{}, err
-	}
 
-	meta := stockPriceMetadata{
-		Close:        price.Close,
-		CloseKRW:     math.Round(price.Close * usdRate),
-		ExchangeRate: usdRate,
+	var meta stockPriceMetadata
+	if intent.Market == "kr" {
+		meta = stockPriceMetadata{
+			Close:        price.Close,
+			CloseKRW:     price.Close, // KR stocks are already in KRW
+			ExchangeRate: 1,           // no conversion needed
+		}
+	} else {
+		usdRate, err := c.getUSDBaseExchangeRate(ctx)
+		if err != nil {
+			return tradingflow.MutationResult{}, err
+		}
+		meta = stockPriceMetadata{
+			Close:        price.Close,
+			CloseKRW:     math.Round(price.Close * usdRate),
+			ExchangeRate: usdRate,
+		}
 	}
 	bodyPrepare, err := buildPlaceBody(productCode, info.Market.Code, intent, meta, true)
 	if err != nil {
@@ -149,7 +158,7 @@ func (c *Client) PlacePendingOrder(ctx context.Context, intent orderintent.Place
 	if strings.TrimSpace(prepare.Result.OrderKey) == "" {
 		return tradingflow.MutationResult{}, fmt.Errorf("place prepare response did not include order key")
 	}
-	if prepare.Result.PreparedOrderInfo.NeedExchange > 0 {
+	if intent.Market != "kr" && prepare.Result.PreparedOrderInfo.NeedExchange > 0 {
 		if !c.tradingPolicy.DangerousAutomation.AcceptFXConsent {
 			return tradingflow.MutationResult{}, c.buildPostPrepareFXBranch(ctx, prepare.Result.PreparedOrderInfo.NeedExchange)
 		}
@@ -172,7 +181,7 @@ func (c *Client) PlacePendingOrder(ctx context.Context, intent orderintent.Place
 		return tradingflow.MutationResult{}, tradingflow.ErrInteractiveAuthRequired
 	}
 
-	return c.reconcilePlacedOrder(ctx, productCode, info.Symbol, intent.Price, intent.Quantity, startedAt)
+	return c.reconcilePlacedOrder(ctx, productCode, info.Symbol, intent.Market, intent.Price, intent.Quantity, startedAt)
 }
 
 func (c *Client) GetOrderAvailableActions(ctx context.Context, orderID string) (map[string]any, error) {
@@ -484,7 +493,7 @@ func (c *Client) CancelPendingOrder(ctx context.Context, intent orderintent.Canc
 		expectedQty = order.Quantity
 	}
 
-	return c.reconcileCanceledOrder(ctx, intent.OrderID, order.StockCode, intent.Symbol, order.OrderPrice, expectedQty, startedAt)
+	return c.reconcileCanceledOrder(ctx, intent.OrderID, order.StockCode, intent.Symbol, orderintent.InferMarketFromStockCode(order.StockCode), order.OrderPrice, expectedQty, startedAt)
 }
 
 func (c *Client) AmendPendingOrder(ctx context.Context, intent orderintent.AmendIntent) (tradingflow.MutationResult, error) {
@@ -534,7 +543,7 @@ func (c *Client) AmendPendingOrder(ctx context.Context, intent orderintent.Amend
 		return tradingflow.MutationResult{}, tradingflow.ErrInteractiveAuthRequired
 	}
 
-	return c.reconcileAmendedOrder(ctx, intent.OrderID, order.StockCode, info.Symbol, expectedPriceKRW, expectedQty, startedAt)
+	return c.reconcileAmendedOrder(ctx, intent.OrderID, order.StockCode, info.Symbol, orderintent.InferMarketFromStockCode(order.StockCode), expectedPriceKRW, expectedQty, startedAt)
 }
 
 func (c *Client) HasPendingOrder(ctx context.Context, orderID string) (bool, error) {
@@ -802,31 +811,46 @@ func buildCancelBodies(order pendingOrderDetails) ([]byte, []byte, error) {
 }
 
 func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceIntent, meta stockPriceMetadata, withOrderKey bool) ([]byte, error) {
+	var priceValue float64
+	if intent.Market == "kr" {
+		priceValue = intent.Price // raw KRW for KR stocks
+	} else {
+		priceValue = round4(intent.Price / meta.ExchangeRate) // KRW→USD for US stocks
+	}
+
 	payload := map[string]any{
 		"stockCode":              productCode,
 		"market":                 marketCode,
 		"currencyMode":           intent.CurrencyMode,
 		"tradeType":              intent.Side,
-		"price":                  round4(intent.Price / meta.ExchangeRate),
+		"price":                  priceValue,
 		"quantity":               intent.Quantity,
 		"orderAmount":            0,
 		"orderPriceType":         "00",
 		"agreedOver100Million":   false,
 		"marginTrading":          false,
 		"max":                    false,
-		"allowAutoExchange":      true,
 		"isReservationOrder":     false,
 		"openPriceSinglePriceYn": false,
 	}
+
+	// US stocks need allowAutoExchange for KRW→USD conversion
+	if intent.Market != "kr" {
+		payload["allowAutoExchange"] = true
+	}
+
 	if withOrderKey {
 		payload["withOrderKey"] = true
 	} else {
-		payload["extra"] = map[string]any{
-			"close":        meta.Close,
-			"closeKrw":     meta.CloseKRW,
-			"exchangeRate": meta.ExchangeRate,
-			"orderMethod":  "종목상세__주문하기",
+		extra := map[string]any{
+			"close":       meta.Close,
+			"orderMethod": "종목상세__주문하기",
 		}
+		if intent.Market != "kr" {
+			extra["closeKrw"] = meta.CloseKRW
+			extra["exchangeRate"] = meta.ExchangeRate
+		}
+		payload["extra"] = extra
 	}
 
 	return json.Marshal(payload)
@@ -840,7 +864,7 @@ func equalFloat(a, b float64) bool {
 	return math.Abs(a-b) < 0.000001
 }
 
-func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
+func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol, market string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
 	completedEarliest := startedAt.Add(-mutationCompletedLookback)
 	for attempt := 0; attempt < mutationReconcileAttempts; attempt++ {
 		if order, err := c.findMatchingPendingOrder(ctx, productCode, symbol, expectedPriceKRW, expectedQty, ""); err != nil {
@@ -851,14 +875,14 @@ func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol s
 				Status:    "accepted_pending",
 				OrderID:   order.ID,
 				Symbol:    symbol,
-				Market:    "us",
+				Market:    market,
 				Quantity:  order.Quantity,
 				Price:     order.Price,
 				OrderDate: order.OrderDate,
 			}, nil
 		}
 
-		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, true, nil); err != nil {
+		if order, err := c.findMatchingCompletedOrder(ctx, market, productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, true, nil); err != nil {
 			return tradingflow.MutationResult{}, err
 		} else if order != nil {
 			return tradingflow.MutationResult{
@@ -866,7 +890,7 @@ func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol s
 				Status:                "filled_completed",
 				OrderID:               order.ID,
 				Symbol:                symbol,
-				Market:                "us",
+				Market:                market,
 				Quantity:              order.Quantity,
 				FilledQuantity:        order.FilledQuantity,
 				Price:                 order.Price,
@@ -886,14 +910,14 @@ func (c *Client) reconcilePlacedOrder(ctx context.Context, productCode, symbol s
 		Kind:     "place",
 		Status:   "unknown",
 		Symbol:   symbol,
-		Market:   "us",
+		Market:   market,
 		Quantity: expectedQty,
 		Price:    expectedPriceKRW,
 		Warnings: []string{"Broker accepted the request but the final state was not visible in pending or completed history yet."},
 	}, nil
 }
 
-func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, productCode, symbol string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
+func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, productCode, symbol, market string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
 	completedEarliest := startedAt.Add(-mutationCompletedLookback)
 	for attempt := 0; attempt < mutationReconcileAttempts; attempt++ {
 		if order, err := c.findMatchingPendingOrder(ctx, productCode, symbol, expectedPriceKRW, expectedQty, originalOrderID); err != nil {
@@ -906,14 +930,14 @@ func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, pro
 				OriginalOrderID: originalOrderID,
 				CurrentOrderID:  order.ID,
 				Symbol:          symbol,
-				Market:          "us",
+				Market:          market,
 				Quantity:        order.Quantity,
 				Price:           order.Price,
 				OrderDate:       order.OrderDate,
 			}, nil
 		}
 
-		if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, nil); err != nil {
+		if order, err := c.findMatchingCompletedOrder(ctx, market, productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, nil); err != nil {
 			return tradingflow.MutationResult{}, err
 		} else if order != nil {
 			return tradingflow.MutationResult{
@@ -923,7 +947,7 @@ func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, pro
 				OriginalOrderID:       originalOrderID,
 				CurrentOrderID:        order.ID,
 				Symbol:                symbol,
-				Market:                "us",
+				Market:                market,
 				Quantity:              order.Quantity,
 				FilledQuantity:        order.FilledQuantity,
 				Price:                 order.Price,
@@ -951,7 +975,7 @@ func (c *Client) reconcileAmendedOrder(ctx context.Context, originalOrderID, pro
 	}, nil
 }
 
-func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, productCode, symbol string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
+func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, productCode, symbol, market string, expectedPriceKRW, expectedQty float64, startedAt time.Time) (tradingflow.MutationResult, error) {
 	completedEarliest := startedAt.Add(-mutationCompletedLookback)
 	for attempt := 0; attempt < mutationReconcileAttempts; attempt++ {
 		stillPending, err := c.HasPendingOrder(ctx, originalOrderID)
@@ -959,7 +983,7 @@ func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, pr
 			return tradingflow.MutationResult{}, err
 		}
 		if !stillPending {
-			if order, err := c.findMatchingCompletedOrder(ctx, "us", productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, func(order domain.Order) bool {
+			if order, err := c.findMatchingCompletedOrder(ctx, market, productCode, symbol, expectedPriceKRW, expectedQty, completedEarliest, false, func(order domain.Order) bool {
 				return orderStatusLooksCanceled(order.Status)
 			}); err != nil {
 				return tradingflow.MutationResult{}, err
@@ -969,7 +993,7 @@ func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, pr
 					Status:    "canceled",
 					OrderID:   order.ID,
 					Symbol:    symbol,
-					Market:    "us",
+					Market:    market,
 					Quantity:  order.Quantity,
 					Price:     order.Price,
 					OrderDate: order.OrderDate,
@@ -988,7 +1012,7 @@ func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, pr
 					OrderID:         originalOrderID,
 					OriginalOrderID: originalOrderID,
 					Symbol:          symbol,
-					Market:          "us",
+					Market:          market,
 					Quantity:        expectedQty,
 					Price:           expectedPriceKRW,
 					Warnings:        []string{"Pending order disappeared, but the canceled completed-history row is not visible yet."},

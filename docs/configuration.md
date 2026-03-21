@@ -28,6 +28,7 @@ tossctl config init
     "grant": false,
     "place": false,
     "sell": false,
+    "kr": false,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": false,
@@ -49,6 +50,9 @@ tossctl config init
 - `trading.sell`
   - `tossctl order place --side sell` 허용 여부
   - `trading.place`도 함께 켜야 매도 주문이 가능합니다
+- `trading.kr`
+  - `tossctl order place --market kr` 허용 여부
+  - `trading.place`도 함께 켜야 국내주식 주문이 가능합니다
 - `trading.cancel`
   - `tossctl order cancel` 허용 여부
 - `trading.amend`
