@@ -58,19 +58,19 @@
 
 ### For Human
 
+#### macOS / Linux (한 줄 설치)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/install.sh | sh
+```
+
+OS와 아키텍처를 자동 감지하고, 체크섬 검증 후 `/usr/local/bin`에 설치합니다.
+
 #### macOS (Homebrew)
 
 ```bash
 brew tap JungHoonGhae/tossinvest-cli
 brew install tossctl
-```
-
-#### Linux
-
-```bash
-curl -LO https://github.com/JungHoonGhae/tossinvest-cli/releases/latest/download/tossctl-linux-amd64.tar.gz
-tar xzf tossctl-linux-amd64.tar.gz
-sudo mv tossctl /usr/local/bin/
 ```
 
 #### Windows (PowerShell)
@@ -85,8 +85,6 @@ Expand-Archive tossctl.zip -DestinationPath .
 ```bash
 tossctl version
 tossctl doctor
-tossctl config show
-tossctl auth doctor
 tossctl auth login
 tossctl account summary --output json
 ```
