@@ -150,7 +150,7 @@ func (s *Service) Place(ctx context.Context, intent orderintent.PlaceIntent, opt
 	if err := s.guard(ctx, ActionPlace, s.PreviewPlace(intent), opts); err != nil {
 		return MutationResult{}, err
 	}
-	// 5. broker call
+	// 6. broker call
 	if s.broker == nil {
 		return MutationResult{}, ErrLiveMutationPending
 	}
