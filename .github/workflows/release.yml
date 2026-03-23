@@ -14,16 +14,27 @@ permissions:
   contents: write
 
 jobs:
-  build-macos:
+  build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - goarch: arm64
+          - goos: darwin
+            goarch: arm64
             asset: tossctl-darwin-arm64
-          - goarch: amd64
+          - goos: darwin
+            goarch: amd64
             asset: tossctl-darwin-amd64
+          - goos: windows
+            goarch: amd64
+            asset: tossctl-windows-amd64
+          - goos: linux
+            goarch: amd64
+            asset: tossctl-linux-amd64
+          - goos: linux
+            goarch: arm64
+            asset: tossctl-linux-arm64
 
     steps:
       - uses: actions/checkout@v5
@@ -35,17 +46,21 @@ jobs:
 
       - name: Build
         env:
-          GOOS: darwin
+          GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist/${{ matrix.asset }}
           VERSION="${GITHUB_REF_NAME#v}"
           COMMIT="${GITHUB_SHA::7}"
           DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          BINARY="tossctl"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY="tossctl.exe"
+          fi
           go build \
             -trimpath \
             -ldflags "-X github.com/junghoonkye/tossinvest-cli/internal/version.Version=${VERSION} -X github.com/junghoonkye/tossinvest-cli/internal/version.Commit=${COMMIT} -X github.com/junghoonkye/tossinvest-cli/internal/version.Date=${DATE}" \
-            -o dist/${{ matrix.asset }}/tossctl \
+            -o "dist/${{ matrix.asset }}/${BINARY}" \
             ./cmd/tossctl
 
       - name: Bundle auth helper
@@ -53,8 +68,13 @@ jobs:
 
       - name: Package artifact
         run: |
-          tar -C dist/${{ matrix.asset }} -czf dist/${{ matrix.asset }}.tar.gz tossctl auth-helper
-          shasum -a 256 dist/${{ matrix.asset }}.tar.gz > dist/${{ matrix.asset }}.tar.gz.sha256
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            cd dist/${{ matrix.asset }} && zip -r ../${{ matrix.asset }}.zip tossctl.exe auth-helper && cd ../..
+            shasum -a 256 dist/${{ matrix.asset }}.zip > dist/${{ matrix.asset }}.zip.sha256
+          else
+            tar -C dist/${{ matrix.asset }} -czf dist/${{ matrix.asset }}.tar.gz tossctl auth-helper
+            shasum -a 256 dist/${{ matrix.asset }}.tar.gz > dist/${{ matrix.asset }}.tar.gz.sha256
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
@@ -63,10 +83,12 @@ jobs:
           path: |
             dist/${{ matrix.asset }}.tar.gz
             dist/${{ matrix.asset }}.tar.gz.sha256
+            dist/${{ matrix.asset }}.zip
+            dist/${{ matrix.asset }}.zip.sha256
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-macos]
+    needs: [build]
     steps:
       - uses: actions/checkout@v5
 
@@ -96,12 +118,10 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          ASSETS=(
-            dist/tossctl-darwin-arm64.tar.gz
-            dist/tossctl-darwin-arm64.tar.gz.sha256
-            dist/tossctl-darwin-amd64.tar.gz
-            dist/tossctl-darwin-amd64.tar.gz.sha256
-          )
+          ASSETS=()
+          for f in dist/tossctl-*.tar.gz dist/tossctl-*.tar.gz.sha256 dist/tossctl-*.zip dist/tossctl-*.zip.sha256; do
+            [ -f "$f" ] && ASSETS+=("$f")
+          done
 
           if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
             gh release edit "$TAG" --notes-file /tmp/release-notes.md --repo "$GH_REPO"

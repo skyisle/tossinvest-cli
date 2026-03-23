@@ -242,6 +242,21 @@ brew tap JungHoonGhae/tossinvest-cli
 brew install tossctl
 ```
 
+### Windows / Linux
+
+GitHub Releases에서 바이너리를 직접 다운로드할 수 있습니다.
+
+```bash
+# Linux (amd64)
+curl -LO https://github.com/JungHoonGhae/tossinvest-cli/releases/latest/download/tossctl-linux-amd64.tar.gz
+tar xzf tossctl-linux-amd64.tar.gz
+sudo mv tossctl /usr/local/bin/
+
+# Windows (amd64) — PowerShell
+Invoke-WebRequest -Uri https://github.com/JungHoonGhae/tossinvest-cli/releases/latest/download/tossctl-windows-amd64.zip -OutFile tossctl.zip
+Expand-Archive tossctl.zip -DestinationPath .
+```
+
 ### From source
 
 ```bash
