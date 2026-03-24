@@ -52,6 +52,14 @@ type Position struct {
 	ProfitRate      float64 `json:"profit_rate,omitempty"`
 	DailyProfitLoss float64 `json:"daily_profit_loss,omitempty"`
 	DailyProfitRate float64 `json:"daily_profit_rate,omitempty"`
+
+	AveragePriceUSD    float64 `json:"average_price_usd,omitempty"`
+	CurrentPriceUSD    float64 `json:"current_price_usd,omitempty"`
+	MarketValueUSD     float64 `json:"market_value_usd,omitempty"`
+	UnrealizedPnLUSD   float64 `json:"unrealized_pnl_usd,omitempty"`
+	ProfitRateUSD      float64 `json:"profit_rate_usd,omitempty"`
+	DailyProfitLossUSD float64 `json:"daily_profit_loss_usd,omitempty"`
+	DailyProfitRateUSD float64 `json:"daily_profit_rate_usd,omitempty"`
 }
 
 type Order struct {

@@ -26,15 +26,22 @@ var testPositions = []domain.Position{
 		DailyProfitRate: 0.0063,
 	},
 	{
-		ProductCode:  "US20220809012",
-		Symbol:       "TSLL",
-		Name:         "TSLL",
-		MarketType:   "US_STOCK",
-		MarketCode:   "NSQ",
-		Quantity:     100,
-		AveragePrice: 15000,
-		CurrentPrice: 12000,
-		MarketValue:  1200000,
+		ProductCode:        "US20220809012",
+		Symbol:             "TSLL",
+		Name:               "TSLL",
+		MarketType:         "US_STOCK",
+		MarketCode:         "NSQ",
+		Quantity:           100,
+		AveragePrice:       15000,
+		CurrentPrice:       12000,
+		MarketValue:        1200000,
+		AveragePriceUSD:    10.50,
+		CurrentPriceUSD:    8.40,
+		MarketValueUSD:     840,
+		UnrealizedPnLUSD:   -210,
+		ProfitRateUSD:      -0.20,
+		DailyProfitLossUSD: -15,
+		DailyProfitRateUSD: -0.0175,
 	},
 }
 
@@ -67,6 +74,9 @@ func TestWritePositionsCSV(t *testing.T) {
 	if !strings.Contains(lines[0], "product_code") {
 		t.Fatalf("expected CSV header, got %s", lines[0])
 	}
+	if !strings.Contains(lines[0], "average_price_usd") {
+		t.Fatalf("expected USD columns in CSV header, got %s", lines[0])
+	}
 	if !strings.Contains(lines[1], "005930") {
 		t.Fatalf("expected 005930 in first row, got %s", lines[1])
 	}
@@ -83,6 +93,16 @@ func TestWritePositionsTable(t *testing.T) {
 	}
 	if !strings.Contains(output, "TSLL") {
 		t.Fatalf("expected TSLL in table output")
+	}
+	if !strings.Contains(output, "last_usd=") {
+		t.Fatalf("expected USD fields for US_STOCK in table output")
+	}
+	// KR_STOCK should not have USD fields
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "삼성전자") && strings.Contains(line, "last_usd=") {
+			t.Fatalf("KR_STOCK should not have USD fields, got %s", line)
+		}
 	}
 }
 

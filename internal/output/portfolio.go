@@ -18,7 +18,7 @@ func WritePositions(w io.Writer, format Format, positions []domain.Position) err
 		return encoder.Encode(positions)
 	case FormatCSV:
 		writer := csv.NewWriter(w)
-		if err := writer.Write([]string{"product_code", "symbol", "name", "market_type", "market_code", "quantity", "average_price", "current_price", "market_value", "unrealized_pnl", "profit_rate", "daily_profit_loss", "daily_profit_rate"}); err != nil {
+		if err := writer.Write([]string{"product_code", "symbol", "name", "market_type", "market_code", "quantity", "average_price", "current_price", "market_value", "unrealized_pnl", "profit_rate", "daily_profit_loss", "daily_profit_rate", "average_price_usd", "current_price_usd", "market_value_usd", "unrealized_pnl_usd", "profit_rate_usd", "daily_profit_loss_usd", "daily_profit_rate_usd"}); err != nil {
 			return err
 		}
 		for _, position := range positions {
@@ -36,6 +36,13 @@ func WritePositions(w io.Writer, format Format, positions []domain.Position) err
 				formatFloat(position.ProfitRate),
 				formatFloat(position.DailyProfitLoss),
 				formatFloat(position.DailyProfitRate),
+				formatFloat(position.AveragePriceUSD),
+				formatFloat(position.CurrentPriceUSD),
+				formatFloat(position.MarketValueUSD),
+				formatFloat(position.UnrealizedPnLUSD),
+				formatFloat(position.ProfitRateUSD),
+				formatFloat(position.DailyProfitLossUSD),
+				formatFloat(position.DailyProfitRateUSD),
 			}); err != nil {
 				return err
 			}
@@ -46,7 +53,7 @@ func WritePositions(w io.Writer, format Format, positions []domain.Position) err
 		for _, position := range positions {
 			if _, err := fmt.Fprintf(
 				w,
-				"- %s (%s) qty=%s avg=%s last=%s value=%s pnl=%s rate=%.2f%% day_pnl=%s day_rate=%.2f%%\n",
+				"- %s (%s) qty=%s avg=%s last=%s value=%s pnl=%s rate=%.2f%% day_pnl=%s day_rate=%.2f%%",
 				position.Name,
 				position.Symbol,
 				formatFloat(position.Quantity),
@@ -58,6 +65,24 @@ func WritePositions(w io.Writer, format Format, positions []domain.Position) err
 				formatFloat(position.DailyProfitLoss),
 				position.DailyProfitRate*100,
 			); err != nil {
+				return err
+			}
+			if position.MarketType == "US_STOCK" {
+				if _, err := fmt.Fprintf(
+					w,
+					" avg_usd=%s last_usd=%s value_usd=%s pnl_usd=%s rate_usd=%.2f%% day_pnl_usd=%s day_rate_usd=%.2f%%",
+					formatFloat(position.AveragePriceUSD),
+					formatFloat(position.CurrentPriceUSD),
+					formatFloat(position.MarketValueUSD),
+					formatFloat(position.UnrealizedPnLUSD),
+					position.ProfitRateUSD*100,
+					formatFloat(position.DailyProfitLossUSD),
+					position.DailyProfitRateUSD*100,
+				); err != nil {
+					return err
+				}
+			}
+			if _, err := fmt.Fprint(w, "\n"); err != nil {
 				return err
 			}
 		}
