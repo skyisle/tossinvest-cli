@@ -109,6 +109,14 @@ func (c *Client) ListPositions(ctx context.Context) ([]domain.Position, error) {
 				ProfitRate:      coalesceMoney(item.ProfitLossRate.KRW, item.ProfitLossRate.USD),
 				DailyProfitLoss: coalesceMoney(item.DailyProfitLossAmount.KRW, item.DailyProfitLossAmount.USD),
 				DailyProfitRate: coalesceMoney(item.DailyProfitLossRate.KRW, item.DailyProfitLossRate.USD),
+
+				AveragePriceUSD:    derefFloat(item.PurchasePrice.USD),
+				CurrentPriceUSD:    derefFloat(item.CurrentPrice.USD),
+				MarketValueUSD:     derefFloat(item.EvaluatedAmount.USD),
+				UnrealizedPnLUSD:   derefFloat(item.ProfitLossAmount.USD),
+				ProfitRateUSD:      derefFloat(item.ProfitLossRate.USD),
+				DailyProfitLossUSD: derefFloat(item.DailyProfitLossAmount.USD),
+				DailyProfitRateUSD: derefFloat(item.DailyProfitLossRate.USD),
 			})
 		}
 	}
@@ -150,6 +158,13 @@ func coalesceMoney(values ...*float64) float64 {
 		if value != nil {
 			return *value
 		}
+	}
+	return 0
+}
+
+func derefFloat(p *float64) float64 {
+	if p != nil {
+		return *p
 	}
 	return 0
 }
