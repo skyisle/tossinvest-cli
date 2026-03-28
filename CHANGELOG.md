@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4] - 2026-03-28
+
+### Fixed
+- **auth login 브라우저 차단 해결** — Playwright 번들 Chromium 대신 시스템 Google Chrome 사용 (`channel="chrome"`). 토스증권이 `Sec-Ch-Ua` 헤더에서 `"Google Chrome"` 브랜드를 확인하도록 변경되어 Chromium이 차단됨 (Fixes #13)
+
+### Changed
+- `tossctl doctor` 브라우저 체크가 Chromium 대신 Chrome 감지로 변경
+- `playwright install chromium` 불필요 — 시스템에 Google Chrome만 설치되어 있으면 됨
+
 ## [0.3.3] - 2026-03-24
 
 ### Added
