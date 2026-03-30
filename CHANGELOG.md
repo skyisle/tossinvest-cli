@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5] - 2026-03-30
+
+### Added
+- **테이블 출력 개선** — `portfolio positions`, `orders list`, `watchlist`, `quotes` 명령의 table 출력을 정렬된 컬럼 형식으로 변경. 종목명 좌측 정렬, 숫자 우측 정렬, 천단위 쉼표 적용
+- `CONTRIBUTING.md` 추가
+
 ## [0.3.4] - 2026-03-28
 
 ### Fixed
