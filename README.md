@@ -56,6 +56,19 @@
 
 ## Quick Start
 
+### For Agent
+
+```text
+Install tossinvest-cli:
+  curl -fsSL https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/install.sh | sh
+(macOS/Linux) or GitHub Releases (Windows).
+
+Run `tossctl doctor` to verify setup, then complete browser login with
+`tossctl auth login`. Use read-only commands first (account, portfolio, quote).
+Trading actions stay disabled until config.json explicitly allows them.
+Always run `tossctl order preview` before any trading mutation.
+```
+
 ### For Human
 
 ```bash
@@ -71,16 +84,6 @@ tossctl account summary --output json
 
 > `auth login`에는 Google Chrome과 Python이 필요하며, 설치 스크립트가 자동으로 설정합니다.
 > Windows, Homebrew, 소스 빌드 등 다른 설치 방법은 [설치](#설치) 섹션을 참고하세요.
-
-### For Agent
-
-```text
-Install tossinvest-cli: `curl -fsSL .../install.sh | sh` (macOS/Linux) or
-GitHub Releases (Windows). Run `tossctl doctor`, complete browser login with
-`tossctl auth login`, then use read-only commands first.
-Trading actions stay disabled until config.json explicitly allows them.
-Only use `tossctl order preview` before any trading mutation.
-```
 
 ## 지원 범위
 
