@@ -56,6 +56,14 @@ main() {
     fi
 
     echo ""
+    echo "Installing Python dependencies for auth-helper..."
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -m pip install --quiet playwright 2>/dev/null || echo "Warning: failed to install playwright. Run 'python3 -m pip install playwright' manually."
+    else
+        echo "Warning: python3 not found. Install Python 3.11+ and run 'python3 -m pip install playwright'."
+    fi
+
+    echo ""
     echo "Installed $(${INSTALL_DIR}/${BINARY} version 2>/dev/null || echo "${BINARY}") to ${INSTALL_DIR}/${BINARY}"
     echo "Auth helper installed to ${SHARE_DIR}/auth-helper"
     echo ""
