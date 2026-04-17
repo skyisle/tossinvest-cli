@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.6] - 2026-04-17
+
+### Fixed
+- **auth login 무한 대기 해결** — Python helper가 `DEVICE_INFO` localStorage 키를 필수로 기다리던 체크 제거. 토스 웹이 해당 키를 더 이상 보장하지 않아 로그인 성공 감지가 실패하던 회귀 수정 (Fixes #17, thanks to @pinion05)
+- **`wts-api` 403 차단 해결** — `applySession`에 브라우저형 기본 `User-Agent` 설정. 기본 Go HTTP User-Agent(`Go-http-client/1.1`)가 토스 서버에서 핑거프린팅으로 차단되어 `account/*`, `portfolio/*`, `quote/*` 호출이 403을 받던 문제 해결. `auth login` 직후/10분 후 모두 정상 동작 확인 (Fixes #15, #17)
+
+### Notes
+- 명시적으로 `User-Agent`가 설정된 요청은 override되지 않고 그대로 유지됨
+
 ## [0.3.5] - 2026-03-30
 
 ### Added
