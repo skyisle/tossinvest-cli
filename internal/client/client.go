@@ -18,6 +18,7 @@ import (
 const defaultAPIBaseURL = "https://wts-api.tossinvest.com"
 const defaultInfoBaseURL = "https://wts-info-api.tossinvest.com"
 const defaultCertBaseURL = "https://wts-cert-api.tossinvest.com"
+const defaultBrowserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 
 type Config struct {
 	HTTPClient    *http.Client

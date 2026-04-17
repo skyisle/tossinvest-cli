@@ -314,6 +314,9 @@ func (c *Client) requireSession() error {
 func (c *Client) applySession(req *http.Request) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Referer", "https://www.tossinvest.com/account")
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", defaultBrowserUserAgent)
+	}
 
 	if c.session == nil {
 		return

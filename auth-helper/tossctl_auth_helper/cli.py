@@ -16,10 +16,11 @@ REQUIRED_COOKIE_NAMES = {
     "FTK",
     "browserSessionId",
 }
+# Toss's current web app still sets WTS-DEVICE-ID and login-method after a
+# successful QR login, but DEVICE_INFO is no longer guaranteed to appear.
 REQUIRED_LOCAL_STORAGE_KEYS = {
     "WTS-DEVICE-ID",
     "login-method",
-    "DEVICE_INFO",
 }
 
 

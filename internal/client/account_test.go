@@ -16,6 +16,9 @@ func TestAuthenticatedAccountMethodsFromFixtures(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("User-Agent"); got != defaultBrowserUserAgent {
+			t.Fatalf("unexpected user agent: %q", got)
+		}
 		fixturePath := authenticatedFixturePathForRequest(t, r.URL.Path)
 		http.ServeFile(w, r, fixturePath)
 	}))
@@ -98,6 +101,20 @@ func TestValidateSessionRequiresStoredSession(t *testing.T) {
 	err := client.ValidateSession(context.Background())
 	if !IsAuthError(err) {
 		t.Fatalf("expected auth error, got %v", err)
+	}
+}
+
+func TestApplySessionPreservesExplicitUserAgent(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "https://example.com", nil)
+	req.Header.Set("User-Agent", "custom-agent/1.0")
+
+	client := New(Config{})
+	client.applySession(req)
+
+	if got := req.Header.Get("User-Agent"); got != "custom-agent/1.0" {
+		t.Fatalf("expected explicit user agent to be preserved, got %q", got)
 	}
 }
 
