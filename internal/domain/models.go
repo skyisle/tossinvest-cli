@@ -88,6 +88,78 @@ type WatchlistItem struct {
 	Last     float64 `json:"last,omitempty"`
 }
 
+type Transaction struct {
+	Type             string          `json:"type"`
+	Category         string          `json:"category"`
+	Code             string          `json:"code,omitempty"`
+	DisplayName      string          `json:"display_name,omitempty"`
+	DisplayType      string          `json:"display_type,omitempty"`
+	Summary          string          `json:"summary,omitempty"`
+	Market           string          `json:"market"`
+	Currency         string          `json:"currency"`
+	StockCode        string          `json:"stock_code,omitempty"`
+	StockName        string          `json:"stock_name,omitempty"`
+	Quantity         float64         `json:"quantity,omitempty"`
+	Amount           float64         `json:"amount"`
+	AdjustedAmount   float64         `json:"adjusted_amount"`
+	CommissionAmount float64         `json:"commission_amount,omitempty"`
+	TaxAmount        float64         `json:"tax_amount,omitempty"`
+	BalanceAmount    float64         `json:"balance_amount,omitempty"`
+	Date             string          `json:"date,omitempty"`
+	DateTime         string          `json:"datetime,omitempty"`
+	OrderDate        string          `json:"order_date,omitempty"`
+	SettlementDate   string          `json:"settlement_date,omitempty"`
+	TradeType        string          `json:"trade_type,omitempty"`
+	ReferenceType    string          `json:"reference_type,omitempty"`
+	ReferenceID      string          `json:"reference_id,omitempty"`
+	SortKey          string          `json:"sort_key,omitempty"`
+	Raw              json.RawMessage `json:"raw,omitempty"`
+}
+
+type TransactionPage struct {
+	Market   string        `json:"market"`
+	Items    []Transaction `json:"items"`
+	LastPage bool          `json:"last_page"`
+	Next     *PagingParam  `json:"next,omitempty"`
+}
+
+type PagingParam struct {
+	Number  int    `json:"number,omitempty"`
+	Size    int    `json:"size,omitempty"`
+	Key     string `json:"key,omitempty"`
+	Filters string `json:"filters,omitempty"`
+	Type    string `json:"type,omitempty"`
+}
+
+type TransactionOverview struct {
+	Market                  string                         `json:"market"`
+	OrderableKRW            float64                        `json:"orderable_krw"`
+	OrderableUSD            float64                        `json:"orderable_usd"`
+	Withdrawable            []SettlementBucket             `json:"withdrawable,omitempty"`
+	DisplayWithdrawable     []SettlementBucket             `json:"display_withdrawable,omitempty"`
+	Deposit                 []SettlementBucket             `json:"deposit,omitempty"`
+	EstimateSettlement      []SettlementEstimate           `json:"estimate_settlement,omitempty"`
+	WithdrawableBottomSheet []WithdrawableBottomSheetEntry `json:"withdrawable_bottom_sheet,omitempty"`
+}
+
+type SettlementBucket struct {
+	Date string  `json:"date,omitempty"`
+	KRW  float64 `json:"krw,omitempty"`
+	USD  float64 `json:"usd,omitempty"`
+}
+
+type SettlementEstimate struct {
+	Date       string  `json:"date,omitempty"`
+	BuyAmount  float64 `json:"buy_amount,omitempty"`
+	SellAmount float64 `json:"sell_amount,omitempty"`
+}
+
+type WithdrawableBottomSheetEntry struct {
+	Title string  `json:"title"`
+	KRW   float64 `json:"krw,omitempty"`
+	USD   float64 `json:"usd,omitempty"`
+}
+
 type Quote struct {
 	ProductCode    string    `json:"product_code,omitempty"`
 	Symbol         string    `json:"symbol"`
