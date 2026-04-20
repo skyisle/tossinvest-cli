@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -52,7 +53,7 @@ type SessionValidator interface {
 func DefaultLoginConfig(cacheDir string) LoginConfig {
 	pythonBin := os.Getenv("TOSSCTL_AUTH_HELPER_PYTHON")
 	if pythonBin == "" {
-		pythonBin = "python3"
+		pythonBin = resolveDefaultPythonBin()
 	}
 
 	helperDir := os.Getenv("TOSSCTL_AUTH_HELPER_DIR")
@@ -70,6 +71,58 @@ func DefaultLoginConfig(cacheDir string) LoginConfig {
 		HelperDir:        helperDir,
 		StorageStatePath: storageStatePath,
 	}
+}
+
+func resolveDefaultPythonBin() string {
+	for _, candidate := range defaultPythonCandidates() {
+		if candidate == "" {
+			continue
+		}
+		if _, err := exec.LookPath(candidate); err == nil {
+			return candidate
+		}
+	}
+	return "python3"
+}
+
+func defaultPythonCandidates() []string {
+	var candidates []string
+	for _, toolDir := range uvToolDirs() {
+		for _, tool := range uvToolNames {
+			candidates = append(candidates,
+				filepath.Join(toolDir, tool, "bin", "python"),
+				filepath.Join(toolDir, tool, "bin", "python3"),
+				filepath.Join(toolDir, tool, "Scripts", "python.exe"),
+			)
+		}
+	}
+	return append(candidates, "python3")
+}
+
+// `playwright` works as a candidate even though it lacks the helper module —
+// `python -m tossctl_auth_helper` resolves from cfg.HelperDir (cmd.Dir).
+var uvToolNames = []string{"tossctl-auth-helper", "playwright"}
+
+func uvToolDirs() []string {
+	var dirs []string
+
+	if dir := os.Getenv("UV_TOOL_DIR"); dir != "" {
+		dirs = append(dirs, dir)
+	}
+
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		dirs = append(dirs, filepath.Join(xdg, "uv", "tools"))
+	}
+
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".local", "share", "uv", "tools"))
+	}
+
+	if appdata := os.Getenv("APPDATA"); appdata != "" {
+		dirs = append(dirs, filepath.Join(appdata, "uv", "tools"))
+	}
+
+	return dirs
 }
 
 func resolveDefaultHelperDir() string {

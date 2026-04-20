@@ -171,6 +171,49 @@ func TestStatusCapturesValidationError(t *testing.T) {
 	}
 }
 
+func TestDefaultLoginConfigHonorsExplicitPythonOverride(t *testing.T) {
+	t.Setenv("TOSSCTL_AUTH_HELPER_PYTHON", "/custom/path/to/python")
+	t.Setenv("UV_TOOL_DIR", "")
+	t.Setenv("XDG_DATA_HOME", "")
+
+	cfg := DefaultLoginConfig(t.TempDir())
+	if cfg.PythonBin != "/custom/path/to/python" {
+		t.Fatalf("expected explicit override to win, got %q", cfg.PythonBin)
+	}
+}
+
+func TestDefaultLoginConfigPrefersUvToolPython(t *testing.T) {
+	toolDir := t.TempDir()
+	pythonPath := filepath.Join(toolDir, "tossctl-auth-helper", "bin", "python")
+	if err := os.MkdirAll(filepath.Dir(pythonPath), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(pythonPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write python stub: %v", err)
+	}
+
+	t.Setenv("TOSSCTL_AUTH_HELPER_PYTHON", "")
+	t.Setenv("UV_TOOL_DIR", toolDir)
+
+	cfg := DefaultLoginConfig(t.TempDir())
+	if cfg.PythonBin != pythonPath {
+		t.Fatalf("expected uv tool python %q, got %q", pythonPath, cfg.PythonBin)
+	}
+}
+
+func TestDefaultLoginConfigFallsBackToPython3(t *testing.T) {
+	t.Setenv("TOSSCTL_AUTH_HELPER_PYTHON", "")
+	t.Setenv("UV_TOOL_DIR", filepath.Join(t.TempDir(), "nonexistent"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(t.TempDir(), "nonexistent"))
+	t.Setenv("APPDATA", "")
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := DefaultLoginConfig(t.TempDir())
+	if cfg.PythonBin != "python3" {
+		t.Fatalf("expected python3 fallback, got %q", cfg.PythonBin)
+	}
+}
+
 func mustTime(t *testing.T, value string) time.Time {
 	t.Helper()
 

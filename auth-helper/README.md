@@ -28,3 +28,18 @@ python3 -m tossctl_auth_helper login --storage-state /tmp/tossctl-storage-state.
 > Google Chrome이 시스템에 설치되어 있어야 합니다. `playwright install chromium`은 더 이상 필요하지 않습니다.
 
 The helper emits JSON on stdout. On success it returns `status=ok` and the path of the saved Playwright storage-state file.
+
+## Python 선택 (tossctl auth login)
+
+`tossctl auth login`이 helper를 실행할 때 쓰는 Python은 아래 순서로 결정됩니다.
+
+1. `TOSSCTL_AUTH_HELPER_PYTHON` (명시적 override — 있으면 그대로 사용)
+2. uv tool이 관리하는 Python (있는 첫 번째가 선택됨)
+   - `$UV_TOOL_DIR/tossctl-auth-helper/bin/python`
+   - `$UV_TOOL_DIR/playwright/bin/python`
+   - `$XDG_DATA_HOME/uv/tools/...`
+   - `~/.local/share/uv/tools/...`
+   - Windows: `%APPDATA%/uv/tools/...` 또는 `Scripts/python.exe`
+3. PATH 상의 `python3`
+
+즉 `uv tool install ./auth-helper` 또는 `uv tool install playwright`로 준비해 두면 전역 python 환경을 오염시키지 않고 helper를 실행할 수 있습니다. 다른 Python을 쓰고 싶을 때는 `TOSSCTL_AUTH_HELPER_PYTHON`으로 덮어쓰면 됩니다.
