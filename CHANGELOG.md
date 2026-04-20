@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **원격/헤드리스 로그인** — `tossctl auth login --headless`. QR 탭 자동 활성화 후 `/api/v2/login/wts/toss/{qr,status}` 응답 인터셉트로 QR URL과 확인 문자(answerLetter)를 stderr에 출력. 텔레그램 등으로 URL만 폰에 보내 탭하면 Toss 앱이 열려 카메라 없이 인증 가능. PNG 파일 저장은 `--qr-output <path>`.
+
 ## [0.3.6] - 2026-04-17
 
 ### Fixed

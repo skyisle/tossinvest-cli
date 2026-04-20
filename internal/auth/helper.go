@@ -31,15 +31,21 @@ func (PythonLoginRunner) Login(ctx context.Context, cfg LoginConfig) (*LoginResu
 		return nil, fmt.Errorf("auth helper storage-state path is not configured")
 	}
 
-	cmd := exec.CommandContext(
-		ctx,
-		cfg.PythonBin,
+	args := []string{
 		"-m",
 		"tossctl_auth_helper",
 		"login",
 		"--storage-state",
 		cfg.StorageStatePath,
-	)
+	}
+	if cfg.Headless {
+		args = append(args, "--headless")
+	}
+	if cfg.QROutputPath != "" {
+		args = append(args, "--qr-output", cfg.QROutputPath)
+	}
+
+	cmd := exec.CommandContext(ctx, cfg.PythonBin, args...)
 	cmd.Dir = cfg.HelperDir
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1")

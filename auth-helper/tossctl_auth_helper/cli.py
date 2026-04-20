@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -16,12 +18,26 @@ REQUIRED_COOKIE_NAMES = {
     "FTK",
     "browserSessionId",
 }
-# Toss's current web app still sets WTS-DEVICE-ID and login-method after a
-# successful QR login, but DEVICE_INFO is no longer guaranteed to appear.
+# DEVICE_INFO is no longer guaranteed after QR login — see auth-notes.md.
 REQUIRED_LOCAL_STORAGE_KEYS = {
     "WTS-DEVICE-ID",
     "login-method",
 }
+
+QR_TAB_SEGMENT_SELECTOR = (
+    '[data-tossinvest-log="SegmentedControlButton"][data-parent-name="TossCert"]'
+)
+QR_TAB_LABEL_EXACT = "QR코드로 로그인"
+QR_TAB_LABEL_PATTERN = re.compile(r"QR", re.IGNORECASE)
+
+QR_API_PATHS = (
+    "/api/v2/login/wts/toss/qr",
+    "/api/v2/login/wts/toss/status",
+)
+
+# The signin page renders the QR as the only inline base64 PNG, so this
+# selector works regardless of the Korean alt attribute ("큐알코드").
+QR_IMG_SELECTOR = 'img[src^="data:image/png;base64"]'
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,6 +67,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=300,
         help="How long to wait for the user to complete login.",
     )
+    login_parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run Chrome headless (required for remote/CLI-only login).",
+    )
+    login_parser.add_argument(
+        "--qr-output",
+        default=None,
+        help="Path to write the current QR PNG (forward to phone via messenger).",
+    )
 
     return parser
 
@@ -75,6 +101,121 @@ def local_storage_keys(storage_state: dict) -> set[str]:
     return set()
 
 
+def activate_qr_tab(page, qr_state=None) -> bool:
+    # Ordered from most to least locale-independent:
+    #   1. data-* attributes that Toss uses for analytics (stable across UI copy)
+    #   2. Korean label match (current fallback)
+    #   3. Generic "QR" regex (last resort)
+    candidates = [
+        ("segment[data-parent=TossCert]#1", lambda: page.locator(QR_TAB_SEGMENT_SELECTOR).nth(1)),
+        ("label-exact", lambda: page.get_by_role("button", name=QR_TAB_LABEL_EXACT).first),
+        ("label-regex", lambda: page.get_by_role("button", name=QR_TAB_LABEL_PATTERN).first),
+    ]
+    for name, factory in candidates:
+        try:
+            locator = factory()
+            locator.wait_for(state="visible", timeout=3000)
+            locator.click(timeout=2000)
+        except Exception:
+            continue
+
+        # Verify the click actually activated QR: the base64 QR image should
+        # render, or the API handler should have stashed a qrCode.
+        try:
+            page.locator(QR_IMG_SELECTOR).first.wait_for(state="visible", timeout=3000)
+            log(f"Activated QR login tab via {name}.")
+            return True
+        except Exception:
+            if qr_state is not None and qr_state.qr_code is not None:
+                log(f"Activated QR login tab via {name} (confirmed by API).")
+                return True
+            continue
+
+    log("Could not confirm QR tab activation — falling through.")
+    return False
+
+
+def decode_qr_url(page) -> str | None:
+    try:
+        return page.evaluate(
+            """
+            async () => {
+              if (typeof BarcodeDetector === 'undefined') return null;
+              const img = document.querySelector('img[src^="data:image/png;base64"]');
+              if (!img) return null;
+              try { await img.decode(); } catch (e) {}
+              const detector = new BarcodeDetector({formats: ['qr_code']});
+              const bitmap = await createImageBitmap(img);
+              const codes = await detector.detect(bitmap);
+              return codes.length ? codes[0].rawValue : null;
+            }
+            """
+        )
+    except Exception:
+        return None
+
+
+def save_qr_png(data_uri: str, output_path: Path) -> bool:
+    try:
+        _, _, b64 = data_uri.partition(",")
+        if not b64:
+            return False
+        output_path.write_bytes(base64.b64decode(b64))
+        return True
+    except Exception as exc:
+        log(f"Failed to save QR PNG: {exc}")
+        return False
+
+
+class QRState:
+    def __init__(self, qr_output: Path | None):
+        self.qr_output = qr_output
+        self.qr_code: str | None = None
+        self.answer_letter: str | None = None
+        self.url: str | None = None
+        self.qr_status: str | None = None
+        self.user_status: str | None = None
+        self.pending_decode = False
+
+    def handle_api_payload(self, result: dict) -> None:
+        new_qr = result.get("qrCode")
+        new_letter = result.get("answerLetter")
+        new_qr_status = result.get("qrStatus")
+        new_user_status = result.get("userStatus")
+
+        if isinstance(new_qr, str) and new_qr != self.qr_code:
+            self.qr_code = new_qr
+            if self.qr_output is not None and save_qr_png(new_qr, self.qr_output):
+                log(f"QR code saved to {self.qr_output}")
+            self.pending_decode = True
+
+        if isinstance(new_letter, str) and new_letter != self.answer_letter:
+            self.answer_letter = new_letter
+            log(
+                f"Answer letter: '{new_letter}' — select this on your phone after scanning the QR."
+            )
+
+        status_key = (new_qr_status, new_user_status)
+        if status_key != (self.qr_status, self.user_status) and any(status_key):
+            self.qr_status = new_qr_status
+            self.user_status = new_user_status
+            log(f"Login status: qr={new_qr_status} user={new_user_status}")
+
+    def flush_decode(self, page) -> None:
+        # Playwright sync API forbids evaluate() inside response callbacks —
+        # defer the decode to the main loop.
+        if not self.pending_decode:
+            return
+        self.pending_decode = False
+        decoded = decode_qr_url(page)
+        if not decoded:
+            return
+        if decoded == self.url:
+            return
+        self.url = decoded
+        log(f"QR URL: {decoded}")
+
+
 def command_login(args: argparse.Namespace) -> int:
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -90,14 +231,51 @@ def command_login(args: argparse.Namespace) -> int:
     storage_state_path = Path(args.storage_state).expanduser().resolve()
     storage_state_path.parent.mkdir(parents=True, exist_ok=True)
 
+    qr_output_path: Path | None = None
+    if args.qr_output:
+        qr_output_path = Path(args.qr_output).expanduser().resolve()
+        qr_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    qr_state = QRState(qr_output_path)
+
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=False, channel="chrome")
+            browser = playwright.chromium.launch(
+                headless=args.headless,
+                channel="chrome",
+            )
             context = browser.new_context()
             page = context.new_page()
+
+            def on_response(response):
+                path = ""
+                try:
+                    path = response.url.split("?", 1)[0]
+                except Exception:
+                    return
+                if not any(path.endswith(p) for p in QR_API_PATHS):
+                    return
+                try:
+                    payload = response.json()
+                except Exception:
+                    return
+                if not isinstance(payload, dict):
+                    return
+                result = payload.get("result")
+                if isinstance(result, dict):
+                    qr_state.handle_api_payload(result)
+
+            page.on("response", on_response)
+
             log("Opened browser for Toss Securities login.")
             page.goto(args.url, wait_until="domcontentloaded")
-            log("Complete QR login in the browser window. The helper will continue after account cookies appear.")
+
+            qr_mode = args.headless or qr_output_path is not None
+            if qr_mode:
+                activate_qr_tab(page, qr_state)
+                page.wait_for_timeout(500)
+            else:
+                log("Complete QR login in the browser window. The helper will continue after account cookies appear.")
 
             deadline = time.monotonic() + args.timeout_seconds
             while time.monotonic() < deadline:
@@ -128,6 +306,7 @@ def command_login(args: argparse.Namespace) -> int:
                         }
                     )
 
+                qr_state.flush_decode(page)
                 page.wait_for_timeout(1000)
 
             browser.close()
