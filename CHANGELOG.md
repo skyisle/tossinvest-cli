@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`tossctl push listen` — SSE 푸시 리스너** — 토스증권 웹이 `GET https://sse-message.tossinvest.com/api/v1/wts-notification` 로 제공하는 Server-Sent Events 채널 구독. 세션 쿠키 재사용, JSONL 로 stdout 출력, 기본 exponential backoff 재연결 (`--retry=false` 로 비활성 가능). Toss 는 thin notification 방식이라 payload 대신 `{"type":"pending-order-refresh",...}` 같은 "재조회하라" 신호만 내려줌. 구독 가능한 이벤트 타입과 의미는 `docs/reverse-engineering/push-events.md` 에 정리.
+
 ## [0.4.4] - 2026-04-23
 
 ### Added

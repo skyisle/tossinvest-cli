@@ -108,6 +108,7 @@ tossctl account summary --output json
 | 거래내역 ledger | `transactions list --market us\|kr` (매매·입출금·배당·입출고) | O | O |
 | 현금 overview | `transactions overview --market us\|kr` (주문가능·출금가능·예정입금) | O | O |
 | CSV 내보내기 | `export positions --market`, `export orders --market`, `transactions list --output csv` | O | O |
+| 실시간 푸시 | `push listen` (SSE, JSONL 스트림 — 주문/가격 변경 알림) | O | O |
 
 ### 거래
 
