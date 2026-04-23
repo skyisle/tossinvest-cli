@@ -55,7 +55,6 @@ func TestLoadTranslatesLegacyAllowDangerousExecute(t *testing.T) {
   "$schema": "https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/schemas/config.schema.json",
   "schema_version": 1,
   "trading": {
-    "grant": true,
     "place": true,
     "cancel": false,
     "amend": false,
@@ -91,14 +90,11 @@ func TestLoadDefaultsSellToFalseWhenFieldMissing(t *testing.T) {
 	data := []byte(`{
   "schema_version": 2,
   "trading": {
-    "grant": true,
     "place": true,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": true,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -125,15 +121,12 @@ func TestLoadParsesSellTrue(t *testing.T) {
 	data := []byte(`{
   "schema_version": 2,
   "trading": {
-    "grant": true,
     "place": true,
     "sell": true,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": true,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -154,7 +147,6 @@ func TestLoadParsesSellTrue(t *testing.T) {
 
 func TestEnabledActionsIncludesSell(t *testing.T) {
 	trading := Trading{
-		Grant: true,
 		Place: true,
 		Sell:  true,
 	}
@@ -173,7 +165,6 @@ func TestEnabledActionsIncludesSell(t *testing.T) {
 
 func TestEnabledActionsExcludesSellWhenFalse(t *testing.T) {
 	trading := Trading{
-		Grant: true,
 		Place: true,
 		Sell:  false,
 	}
@@ -190,15 +181,12 @@ func TestLoadDefaultsKRToFalseWhenFieldMissing(t *testing.T) {
 	data := []byte(`{
   "schema_version": 2,
   "trading": {
-    "grant": true,
     "place": true,
     "sell": true,
     "cancel": false,
     "amend": false,
     "allow_live_order_actions": true,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -222,7 +210,6 @@ func TestLoadParsesKRTrue(t *testing.T) {
 	data := []byte(`{
   "schema_version": 2,
   "trading": {
-    "grant": true,
     "place": true,
     "sell": true,
     "kr": true,
@@ -230,8 +217,6 @@ func TestLoadParsesKRTrue(t *testing.T) {
     "amend": false,
     "allow_live_order_actions": true,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -271,12 +256,6 @@ func TestInitCreatesDangerousAutomationDefaults(t *testing.T) {
 	result, err := service.Init(context.Background())
 	if err != nil {
 		t.Fatalf("Init returned error: %v", err)
-	}
-	if result.Status.Trading.DangerousAutomation.CompleteTradeAuth {
-		t.Fatal("expected complete_trade_auth to be disabled by default")
-	}
-	if result.Status.Trading.DangerousAutomation.AcceptProductAck {
-		t.Fatal("expected accept_product_ack to be disabled by default")
 	}
 	if result.Status.Trading.DangerousAutomation.AcceptFXConsent {
 		t.Fatal("expected accept_fx_consent to be disabled by default")

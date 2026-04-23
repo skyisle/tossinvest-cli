@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-04-23
+
+### Removed
+- **죽은 config 토글 3개 제거** — 모두 코드 어디서도 참조되지 않아 UX 오해만 유발하던 필드. 기존 config에 남아있어도 무시되며 `doctor`의 `legacy_config`에서 감지됨:
+  - `trading.grant` — `order permissions grant` 커맨드 게이트처럼 보였지만 실제 매매 게이트는 `place`/`cancel`/`amend` + `allow_live_order_actions`만 확인. `grant=false, place=true` 설정 시 매매는 되면서 grant만 막히는 기묘한 조합 가능하던 문제
+  - `dangerous_automation.complete_trade_auth` — 어떤 handler에도 연결되지 않은 dead code. `true`로 켜면 doctor에서 경고만 뜨고 기능은 무변화
+  - `dangerous_automation.accept_product_ack` — 동일 (dead code)
+
+### Changed
+- `order permissions grant` 실행 조건 단순화 — `place` 또는 `cancel` 또는 `amend` 중 하나라도 허용되어 있으면 실행 가능 (기존: 별도의 `grant` 토글 추가 요구)
+- README / `docs/configuration.md` 토글 섹션 재구성 — "경로 게이트" (`place`/`cancel`/`amend`, broker API 분기) vs "스코프 선언" (`sell`/`kr`/`fractional`, 유저 자가 제한) 두 범주로 명확히 구분해서 설명. 기존에 "안전 게이트"로 묶여있어 오해 소지 있던 부분 정리
+- `config.schema.json` 업데이트 — 제거된 필드들 `required`에서 빠짐
+
+### Migration
+- 별도 조치 불필요. v0.4.2에서 오던 config를 그대로 두면 됨. `doctor` 돌리면 `legacy_config` info에 "trading.grant / complete_trade_auth / accept_product_ack는 v0.4.3부터 무시됨"이 표시됨
+- 혹시 `trading.grant=true`에만 의존하고 실제 매매 토글(`place` 등)은 꺼둔 상태였다면, 동작상 차이 없음 — 예전에도 실제 매매는 불가능했음
+
 ## [0.4.2] - 2026-04-23
 
 ### Added

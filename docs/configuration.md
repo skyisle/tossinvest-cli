@@ -25,7 +25,6 @@ tossctl config init
   "$schema": "https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/schemas/config.schema.json",
   "schema_version": 2,
   "trading": {
-    "grant": false,
     "place": false,
     "sell": false,
     "kr": false,
@@ -34,8 +33,6 @@ tossctl config init
     "amend": false,
     "allow_live_order_actions": false,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -44,37 +41,23 @@ tossctl config init
 
 ## 필드 설명
 
-- `trading.grant`
-  - `tossctl order permissions grant` 허용 여부
-- `trading.place`
-  - `tossctl order place` 허용 여부
-- `trading.sell`
-  - `tossctl order place --side sell` 허용 여부
-  - `trading.place`도 함께 켜야 매도 주문이 가능합니다
-- `trading.kr`
-  - `tossctl order place --market kr` 허용 여부
-  - `trading.place`도 함께 켜야 국내주식 주문이 가능합니다
-- `trading.fractional`
-  - `tossctl order place --fractional --amount <KRW>` 허용 여부
-  - US 시장가 주문으로만 지원됩니다 (소수점 주문은 금액 기반)
-  - `trading.place`도 함께 켜야 소수점 주문이 가능합니다
-- `trading.cancel`
-  - `tossctl order cancel` 허용 여부
-- `trading.amend`
-  - `tossctl order amend` 허용 여부
-- `trading.allow_live_order_actions`
-  - 실계좌 주문 액션(`place`, `cancel`, `amend`) 자체를 허용할지
-- `trading.dangerous_automation.complete_trade_auth`
-  - trade auth 분기를 자동 완료하도록 허용할지
-  - 해당 분기 handler가 구현된 빌드에서만 실제로 효과가 있습니다
-- `trading.dangerous_automation.accept_product_ack`
-  - product acknowledgement 분기를 자동 수락하도록 허용할지
-  - 해당 분기 handler가 구현된 빌드에서만 실제로 효과가 있습니다
-- `trading.dangerous_automation.accept_fx_consent`
-  - post-prepare FX confirmation branch를 자동 수락하고 같은 주문을 계속 진행하도록 허용할지
-  - 현재는 `prepare` 성공 후 `needExchange > 0`인 미국주식 KRW 매수 경로에만 연결됩니다
+토글은 두 종류로 나뉩니다.
 
-즉, 각 액션은 config에서 먼저 열려 있어야 하고, 그 다음에도 기존 실행 게이트를 통과해야 합니다.
+**경로 게이트 (broker API 분기별)**
+- `trading.place` — `tossctl order place` 허용 여부
+- `trading.cancel` — `tossctl order cancel` 허용 여부
+- `trading.amend` — `tossctl order amend` 허용 여부
+
+**스코프 선언 (유저 자가 제한)**
+- `trading.sell` — `tossctl order place --side sell` 허용 여부. `trading.place`도 함께 켜야 합니다. 끄면 매수만 가능
+- `trading.kr` — `tossctl order place --market kr` 허용 여부. `trading.place`도 함께 켜야 합니다. 끄면 US only
+- `trading.fractional` — `tossctl order place --fractional --amount <KRW>` 허용 여부. US 시장가 주문으로만 지원. `trading.place`도 함께 켜야 합니다
+
+**마스터 / 자동화**
+- `trading.allow_live_order_actions` — 실계좌에 도달하는 주문 액션(`place`, `cancel`, `amend`) 자체를 허용. **마스터 킬스위치**로 위 경로 게이트가 켜져 있어도 이 값이 false면 broker에 닿지 않음
+- `trading.dangerous_automation.accept_fx_consent` — post-prepare FX confirmation branch를 자동 수락하고 같은 주문을 계속 진행하도록 허용. 현재는 `prepare` 성공 후 `needExchange > 0`인 미국주식 KRW 매수 경로에만 연결됨
+
+즉, 각 액션은 config에서 먼저 열려 있어야 하고, 그 다음에도 기존 실행 게이트를 통과해야 합니다. **`order permissions grant`는 별도 토글 없이 `place`/`cancel`/`amend` 중 하나라도 켜져 있으면 실행 가능합니다** (grant 자체는 TTL 부여만 담당).
 
 ## 실행 순서
 
@@ -90,6 +73,8 @@ tossctl config init
 ## Legacy Compatibility
 
 기존 `schema_version: 1` 파일과 `trading.allow_dangerous_execute`는 계속 읽을 수 있습니다.
+
+`v0.4.3`에서 제거된 필드(`trading.grant`, `trading.dangerous_automation.complete_trade_auth`, `trading.dangerous_automation.accept_product_ack`)는 설정에 남아있어도 무시되며, `doctor`의 `legacy_config` 체크에서 감지해 알려줍니다. 해당 필드들은 실제로 어떤 동작도 제어하지 않던 죽은 토글이었습니다.
 
 다만 `config show`와 `doctor`는 새 이름 기준으로 해석해서 보여주고, legacy key를 변환해서 읽고 있으면 그 사실을 따로 알려줍니다.
 

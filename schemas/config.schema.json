@@ -17,10 +17,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "grant": {
-          "type": "boolean",
-          "default": false
-        },
         "place": {
           "type": "boolean",
           "default": false
@@ -53,28 +49,17 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "complete_trade_auth": {
-              "type": "boolean",
-              "default": false
-            },
-            "accept_product_ack": {
-              "type": "boolean",
-              "default": false
-            },
             "accept_fx_consent": {
               "type": "boolean",
               "default": false
             }
           },
           "required": [
-            "complete_trade_auth",
-            "accept_product_ack",
             "accept_fx_consent"
           ]
         }
       },
       "required": [
-        "grant",
         "place",
         "cancel",
         "amend",

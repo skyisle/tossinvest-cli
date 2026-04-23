@@ -184,8 +184,15 @@ func (s *Service) Amend(ctx context.Context, intent orderintent.AmendIntent, opt
 	return s.broker.AmendPendingOrder(ctx, intent)
 }
 
+// GrantEnabled reports whether it is meaningful for the user to run
+// `tossctl order permissions grant`. A grant only has effect if at least one
+// mutation action is allowed by config; granting a TTL when no action gate
+// is open is a UX dead-end.
 func (s *Service) GrantEnabled() error {
-	return s.requireActionEnabled(ActionGrant)
+	if s.policy.Place || s.policy.Cancel || s.policy.Amend {
+		return nil
+	}
+	return &DisabledActionError{Action: "grant (no mutation toggles enabled)"}
 }
 
 func (s *Service) guard(ctx context.Context, action Action, preview Preview, opts ExecuteOptions) error {
@@ -213,8 +220,6 @@ func (s *Service) guard(ctx context.Context, action Action, preview Preview, opt
 func (s *Service) requireActionEnabled(action Action) error {
 	enabled := false
 	switch action {
-	case ActionGrant:
-		enabled = s.policy.Grant
 	case ActionPlace:
 		enabled = s.policy.Place
 	case ActionCancel:

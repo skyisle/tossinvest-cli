@@ -82,7 +82,6 @@ func (e *PrepareRejectedError) Error() string {
 type Action string
 
 const (
-	ActionGrant  Action = "grant"
 	ActionPlace  Action = "place"
 	ActionCancel Action = "cancel"
 	ActionAmend  Action = "amend"

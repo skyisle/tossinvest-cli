@@ -119,7 +119,7 @@ tossctl account summary --output json
 | 소수점 매수 (US) | `order place --fractional --amount <KRW>` | `place` + `fractional` |
 | 주문 취소 | `order cancel --order-id <id>` | `cancel` |
 | 주문 정정 | `order amend --order-id <id>` | `amend` |
-| 거래 권한 관리 | `order permissions grant\|status\|revoke` | `grant` |
+| 거래 권한 관리 | `order permissions grant\|status\|revoke` | `place`/`cancel`/`amend` 중 하나 |
 
 모든 거래는 `allow_live_order_actions=true`도 필요합니다. 소수점 주문은 시장가(market order)로 자동 전환되며, 금액(KRW) 기반입니다.
 
@@ -144,7 +144,6 @@ tossctl config show
   "$schema": "https://raw.githubusercontent.com/JungHoonGhae/tossinvest-cli/main/schemas/config.schema.json",
   "schema_version": 2,
   "trading": {
-    "grant": false,
     "place": false,
     "sell": false,
     "kr": false,
@@ -153,8 +152,6 @@ tossctl config show
     "amend": false,
     "allow_live_order_actions": false,
     "dangerous_automation": {
-      "complete_trade_auth": false,
-      "accept_product_ack": false,
       "accept_fx_consent": false
     }
   }
@@ -163,15 +160,20 @@ tossctl config show
 
 | 필드 | 설명 |
 |------|------|
-| `grant` | `order permissions grant` 허용 |
-| `place` | `order place` 허용 |
-| `sell` | 매도 주문 허용 (`place`도 필요) |
-| `kr` | 국내주식 거래 허용 (`place`도 필요) |
-| `fractional` | 소수점 주문 허용 (`place`도 필요, US 시장가만) |
-| `cancel` | `order cancel` 허용 |
-| `amend` | `order amend` 허용 |
-| `allow_live_order_actions` | 실계좌에 영향을 주는 주문 액션 허용 |
+| `place` | `order place` 경로 허용 (broker API 분기: place) |
+| `cancel` | `order cancel` 경로 허용 (broker API 분기: cancel) |
+| `amend` | `order amend` 경로 허용 (broker API 분기: amend) |
+| `sell` | 매도 주문 허용 (`place`도 필요) — **scope 선언**: 유저가 스스로 "매수만/매도 포함" 범위 제한 |
+| `kr` | 국내주식 거래 허용 (`place`도 필요) — **scope 선언**: "US only" 자가 제한 |
+| `fractional` | 소수점 주문 허용 (`place`도 필요, US 시장가만) — **scope 선언** |
+| `allow_live_order_actions` | 마스터 킬스위치 — 위 `place/cancel/amend` 중 하나라도 실제 broker에 도달하려면 이 값도 `true`여야 함 |
 | `accept_fx_consent` | post-prepare FX confirmation 자동 진행 |
+
+> **두 가지 유형의 토글:**
+> - **경로 게이트** (`place`, `cancel`, `amend`) — broker API 분기가 실제로 다른 세 동작을 각각 독립적으로 켬/끔
+> - **스코프 선언** (`sell`, `kr`, `fractional`) — 유저가 스스로 "난 이 범주의 주문은 안 낸다"고 선언하여 실수/버그/agent 오작동 방지
+>
+> `v0.4.3`에서 `trading.grant`, `dangerous_automation.complete_trade_auth`, `dangerous_automation.accept_product_ack`는 제거되었습니다. 남아있는 구 설정은 자동 무시되며 `doctor`에서 경고로 표시됩니다.
 
 ## 주문 예시
 
@@ -179,7 +181,7 @@ tossctl config show
 
 ```bash
 tossctl config init
-# config.json: grant, place, allow_live_order_actions → true
+# config.json: place, allow_live_order_actions → true
 
 tossctl order preview \
   --symbol TSLL --side buy --qty 1 --price 18000 --output json
@@ -195,7 +197,7 @@ tossctl order place \
 ### 소수점 매수 (US, 금액 기반)
 
 ```bash
-# config.json: grant, place, fractional, allow_live_order_actions → true
+# config.json: place, fractional, allow_live_order_actions → true
 
 tossctl order preview \
   --symbol TSLL --side buy --fractional --amount 1000 --qty 0 --output json
@@ -209,7 +211,7 @@ tossctl order place \
 ### 국내주식 매수
 
 ```bash
-# config.json: grant, place, kr, allow_live_order_actions → true
+# config.json: place, kr, allow_live_order_actions → true
 
 tossctl order place \
   --symbol 005930 --market kr --side buy --qty 1 --price 200000 \

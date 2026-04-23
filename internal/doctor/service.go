@@ -572,7 +572,7 @@ func checkLegacyConfig(status config.Status) Check {
 	return Check{
 		Name:    "legacy_config",
 		Status:  CheckWarn,
-		Summary: "legacy trading config keys were translated into the current policy model",
-		Detail:  strings.Join(status.LegacyFields, ", ") + " -> trading.allow_live_order_actions",
+		Summary: "legacy trading config keys detected (values ignored, safe to remove from config.json)",
+		Detail:  strings.Join(status.LegacyFields, ", "),
 	}
 }

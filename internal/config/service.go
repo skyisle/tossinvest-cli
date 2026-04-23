@@ -14,13 +14,10 @@ const (
 )
 
 type DangerousAutomation struct {
-	CompleteTradeAuth bool `json:"complete_trade_auth"`
-	AcceptProductAck  bool `json:"accept_product_ack"`
-	AcceptFXConsent   bool `json:"accept_fx_consent"`
+	AcceptFXConsent bool `json:"accept_fx_consent"`
 }
 
 type Trading struct {
-	Grant                 bool                `json:"grant"`
 	Place                 bool                `json:"place"`
 	Sell                  bool                `json:"sell"`
 	KR                    bool                `json:"kr"`
@@ -33,9 +30,6 @@ type Trading struct {
 
 func (t Trading) EnabledActions() []string {
 	enabled := []string{}
-	if t.Grant {
-		enabled = append(enabled, "grant")
-	}
 	if t.Place {
 		enabled = append(enabled, "place")
 	}
@@ -59,16 +53,17 @@ func (t Trading) EnabledActions() []string {
 
 func (d DangerousAutomation) EnabledActions() []string {
 	enabled := []string{}
-	if d.CompleteTradeAuth {
-		enabled = append(enabled, "complete_trade_auth")
-	}
-	if d.AcceptProductAck {
-		enabled = append(enabled, "accept_product_ack")
-	}
 	if d.AcceptFXConsent {
 		enabled = append(enabled, "accept_fx_consent")
 	}
 	return enabled
+}
+
+// AnyMutationEnabled reports whether any order-mutation toggle is on.
+// Used to decide whether commands like `order permissions grant` are useful
+// (vs. being a no-op because no action gate is open).
+func (t Trading) AnyMutationEnabled() bool {
+	return t.Place || t.Cancel || t.Amend
 }
 
 type File struct {
@@ -102,16 +97,22 @@ type legacyMetadata struct {
 }
 
 type rawTrading struct {
-	Grant                 bool                 `json:"grant"`
-	Place                 bool                 `json:"place"`
-	Sell                  bool                 `json:"sell"`
-	KR                    bool                 `json:"kr"`
-	Fractional            bool                 `json:"fractional"`
-	Cancel                bool                 `json:"cancel"`
-	Amend                 bool                 `json:"amend"`
-	AllowLiveOrderActions *bool                `json:"allow_live_order_actions"`
-	AllowDangerousExecute *bool                `json:"allow_dangerous_execute"`
-	DangerousAutomation   *DangerousAutomation `json:"dangerous_automation"`
+	Grant                 *bool                   `json:"grant"`
+	Place                 bool                    `json:"place"`
+	Sell                  bool                    `json:"sell"`
+	KR                    bool                    `json:"kr"`
+	Fractional            bool                    `json:"fractional"`
+	Cancel                bool                    `json:"cancel"`
+	Amend                 bool                    `json:"amend"`
+	AllowLiveOrderActions *bool                   `json:"allow_live_order_actions"`
+	AllowDangerousExecute *bool                   `json:"allow_dangerous_execute"`
+	DangerousAutomation   *rawDangerousAutomation `json:"dangerous_automation"`
+}
+
+type rawDangerousAutomation struct {
+	CompleteTradeAuth *bool `json:"complete_trade_auth"`
+	AcceptProductAck  *bool `json:"accept_product_ack"`
+	AcceptFXConsent   bool  `json:"accept_fx_consent"`
 }
 
 type rawFile struct {
@@ -200,13 +201,20 @@ func (s *Service) load() (File, bool, legacyMetadata, error) {
 	}
 	meta.SourceSchemaVersion = sourceSchemaVersion
 
-	cfg.Trading.Grant = raw.Trading.Grant
 	cfg.Trading.Place = raw.Trading.Place
 	cfg.Trading.Sell = raw.Trading.Sell
 	cfg.Trading.KR = raw.Trading.KR
 	cfg.Trading.Fractional = raw.Trading.Fractional
 	cfg.Trading.Cancel = raw.Trading.Cancel
 	cfg.Trading.Amend = raw.Trading.Amend
+
+	// trading.grant was removed in v0.4.3 — it gated nothing that the other
+	// per-action toggles + allow_live_order_actions didn't already gate. We
+	// still parse it so an old config with `grant` present doesn't fail to
+	// load, and surface it in LegacyFields so the doctor can flag it.
+	if raw.Trading.Grant != nil {
+		meta.LegacyFields = append(meta.LegacyFields, "trading.grant")
+	}
 
 	switch {
 	case raw.Trading.AllowLiveOrderActions != nil:
@@ -217,7 +225,15 @@ func (s *Service) load() (File, bool, legacyMetadata, error) {
 	}
 
 	if raw.Trading.DangerousAutomation != nil {
-		cfg.Trading.DangerousAutomation = *raw.Trading.DangerousAutomation
+		cfg.Trading.DangerousAutomation.AcceptFXConsent = raw.Trading.DangerousAutomation.AcceptFXConsent
+		// complete_trade_auth / accept_product_ack were removed in v0.4.3
+		// — never wired to any behavior. Legacy key detection only.
+		if raw.Trading.DangerousAutomation.CompleteTradeAuth != nil {
+			meta.LegacyFields = append(meta.LegacyFields, "trading.dangerous_automation.complete_trade_auth")
+		}
+		if raw.Trading.DangerousAutomation.AcceptProductAck != nil {
+			meta.LegacyFields = append(meta.LegacyFields, "trading.dangerous_automation.accept_product_ack")
+		}
 	}
 
 	if cfg.Schema == "" {

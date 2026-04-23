@@ -14,7 +14,6 @@ func TestWriteConfigStatusJSON(t *testing.T) {
 		Exists:        true,
 		SchemaVersion: 2,
 		Trading: config.Trading{
-			Grant: true,
 			Place: true,
 			Sell:  true,
 			KR:    false,
@@ -24,8 +23,8 @@ func TestWriteConfigStatusJSON(t *testing.T) {
 	if err := WriteConfigStatus(&buf, FormatJSON, status); err != nil {
 		t.Fatalf("WriteConfigStatus JSON error: %v", err)
 	}
-	if !strings.Contains(buf.String(), `"grant":true`) && !strings.Contains(buf.String(), `"grant": true`) {
-		t.Fatalf("expected grant:true in JSON output, got %s", buf.String())
+	if !strings.Contains(buf.String(), `"place":true`) && !strings.Contains(buf.String(), `"place": true`) {
+		t.Fatalf("expected place:true in JSON output, got %s", buf.String())
 	}
 }
 
@@ -35,7 +34,6 @@ func TestWriteConfigStatusTable(t *testing.T) {
 		Exists:        true,
 		SchemaVersion: 2,
 		Trading: config.Trading{
-			Grant: true,
 			Place: true,
 			Sell:  false,
 			KR:    true,

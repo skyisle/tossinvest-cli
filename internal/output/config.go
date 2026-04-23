@@ -20,7 +20,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 	case FormatCSV:
 		writer := csv.NewWriter(w)
 		if err := writer.Write([]string{
-			"config_file", "exists", "schema_version", "source_schema_version", "grant", "place", "sell", "kr", "fractional", "cancel", "amend", "allow_live_order_actions", "complete_trade_auth", "accept_product_ack", "accept_fx_consent", "legacy_fields",
+			"config_file", "exists", "schema_version", "source_schema_version", "place", "sell", "kr", "fractional", "cancel", "amend", "allow_live_order_actions", "accept_fx_consent", "legacy_fields",
 		}); err != nil {
 			return err
 		}
@@ -29,7 +29,6 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 			strconv.FormatBool(status.Exists),
 			strconv.Itoa(status.SchemaVersion),
 			strconv.Itoa(status.SourceSchemaVersion),
-			strconv.FormatBool(status.Trading.Grant),
 			strconv.FormatBool(status.Trading.Place),
 			strconv.FormatBool(status.Trading.Sell),
 			strconv.FormatBool(status.Trading.KR),
@@ -37,8 +36,6 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 			strconv.FormatBool(status.Trading.Cancel),
 			strconv.FormatBool(status.Trading.Amend),
 			strconv.FormatBool(status.Trading.AllowLiveOrderActions),
-			strconv.FormatBool(status.Trading.DangerousAutomation.CompleteTradeAuth),
-			strconv.FormatBool(status.Trading.DangerousAutomation.AcceptProductAck),
 			strconv.FormatBool(status.Trading.DangerousAutomation.AcceptFXConsent),
 			strings.Join(status.LegacyFields, "|"),
 		}); err != nil {
@@ -64,8 +61,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 		}
 		if _, err := fmt.Fprintf(
 			w,
-			"Trading Grant: %t\nTrading Place: %t\nTrading Sell: %t\nTrading KR: %t\nTrading Fractional: %t\nTrading Cancel: %t\nTrading Amend: %t\nAllow Live Order Actions: %t\nDangerous Automation: %s\n",
-			status.Trading.Grant,
+			"Trading Place: %t\nTrading Sell: %t\nTrading KR: %t\nTrading Fractional: %t\nTrading Cancel: %t\nTrading Amend: %t\nAllow Live Order Actions: %t\nDangerous Automation: %s\n",
 			status.Trading.Place,
 			status.Trading.Sell,
 			status.Trading.KR,
