@@ -23,6 +23,15 @@ REQUIRED_LOCAL_STORAGE_KEYS = {
     "login-method",
 }
 
+# When the user confirms "이 기기 로그인 유지" on their phone after QR auth,
+# Toss calls POST /api/v1/wts-login-device/check-with-login, whose response
+# re-issues the SESSION cookie with Max-Age=31536000 (1 year). If we save
+# storage state before that second confirmation, the SESSION is only
+# session-scoped (expires=-1) and the server invalidates it after ≈1h idle.
+# We wait for the persistent cookie before saving so the CLI inherits the
+# long-lived session.
+PERSISTENT_SESSION_MIN_TTL_SECONDS = 7 * 24 * 3600  # > 1 week out = definitely persistent
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -75,6 +84,17 @@ def local_storage_keys(storage_state: dict) -> set[str]:
     return set()
 
 
+def has_persistent_session_cookie(storage_state: dict) -> bool:
+    threshold = time.time() + PERSISTENT_SESSION_MIN_TTL_SECONDS
+    for cookie in storage_state.get("cookies", []):
+        if cookie.get("name") != "SESSION":
+            continue
+        expires = cookie.get("expires")
+        if isinstance(expires, (int, float)) and expires >= threshold:
+            return True
+    return False
+
+
 def command_login(args: argparse.Namespace) -> int:
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -100,19 +120,31 @@ def command_login(args: argparse.Namespace) -> int:
             log("Complete QR login in the browser window. The helper will continue after account cookies appear.")
 
             deadline = time.monotonic() + args.timeout_seconds
+            initial_auth_notified = False
             while time.monotonic() < deadline:
                 storage_state = context.storage_state()
                 cookies = {cookie["name"]: cookie["value"] for cookie in storage_state.get("cookies", [])}
                 storage_keys = local_storage_keys(storage_state)
                 current_url = page.url
 
-                if (
+                initial_auth_done = (
                     REQUIRED_COOKIE_NAMES.issubset(cookies.keys())
                     and REQUIRED_LOCAL_STORAGE_KEYS.issubset(storage_keys)
                     and "signin" not in current_url
-                ):
+                )
+
+                if initial_auth_done and not initial_auth_notified:
+                    log(
+                        "First-step login captured. "
+                        "Now confirm '이 기기 로그인 유지' on your phone "
+                        "to obtain the persistent (long-lived) session."
+                    )
+                    initial_auth_notified = True
+
+                if initial_auth_done and has_persistent_session_cookie(storage_state):
                     page.wait_for_timeout(1500)
                     storage_state = context.storage_state()
+                    final_cookie_count = len(storage_state.get("cookies", []))
                     storage_state_path.write_text(
                         json.dumps(storage_state, indent=2),
                         encoding="utf-8",
@@ -121,9 +153,12 @@ def command_login(args: argparse.Namespace) -> int:
                     return emit(
                         {
                             "status": "ok",
-                            "message": "Captured authenticated Toss Securities storage state.",
+                            "message": (
+                                "Captured authenticated Toss Securities storage state "
+                                "with persistent SESSION cookie."
+                            ),
                             "storage_state_path": str(storage_state_path),
-                            "cookie_count": len(cookies),
+                            "cookie_count": final_cookie_count,
                             "origin_count": len(storage_state.get("origins", [])),
                         }
                     )
@@ -131,15 +166,18 @@ def command_login(args: argparse.Namespace) -> int:
                 page.wait_for_timeout(1000)
 
             browser.close()
-            return emit(
-                {
-                    "status": "error",
-                    "message": (
-                        f"Timed out after {args.timeout_seconds} seconds waiting for login to complete. "
-                        "A full authenticated web session was not observed."
-                    ),
-                }
-            )
+            if not initial_auth_notified:
+                timeout_message = (
+                    f"Timed out after {args.timeout_seconds} seconds. "
+                    "QR login was not completed — scan the QR code in the browser window first."
+                )
+            else:
+                timeout_message = (
+                    f"Timed out after {args.timeout_seconds} seconds. "
+                    "QR scan completed but no persistent SESSION was captured. "
+                    "Make sure you confirmed '이 기기 로그인 유지' on your phone."
+                )
+            return emit({"status": "error", "message": timeout_message})
     except PlaywrightError as exc:
         message = str(exc)
         if "Executable doesn't exist" in message:

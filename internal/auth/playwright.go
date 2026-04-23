@@ -11,8 +11,9 @@ import (
 
 type playwrightStorageState struct {
 	Cookies []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
+		Name    string  `json:"name"`
+		Value   string  `json:"value"`
+		Expires float64 `json:"expires"`
 	} `json:"cookies"`
 	Origins []struct {
 		Origin       string `json:"origin"`
@@ -44,6 +45,10 @@ func (s *Service) ImportPlaywrightState(ctx context.Context, path string) (*sess
 
 	for _, cookie := range state.Cookies {
 		sess.Cookies[cookie.Name] = cookie.Value
+		if cookie.Name == "SESSION" && cookie.Expires > 0 {
+			expiresAt := time.Unix(int64(cookie.Expires), 0).UTC()
+			sess.ExpiresAt = &expiresAt
+		}
 	}
 
 	for _, origin := range state.Origins {

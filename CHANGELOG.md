@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **영속(Persistent) 세션 캡처** — `auth login` 이 폰의 "이 기기 로그인 유지" 2차 인증까지 기다린 뒤에 storage state 를 저장. 그 결과 `SESSION` 쿠키가 1년짜리 영속 쿠키로 저장되어 서버 idle timeout 면제 (≈1시간 후에도 401 나지 않음).
+- `auth status` / `auth import-playwright-state` 출력에 `Persistence` 필드 추가 — `persistent (expires ...)` 또는 `session-scoped (≈1h idle timeout)` 로 세션 수명 표시. JSON 출력에 `expires_at`, `persistent` 필드 포함.
+
+### Fixed
+- **1시간 뒤 401 재발** — 과거 `auth login` 이 QR 1차 인증 직후 종료하여 session-scoped SESSION 만 저장했고, 이로 인해 약 1시간 idle 후 서버가 세션을 invalidate 했던 문제. 이제 "이 기기 로그인 유지" 2차 확인까지 기다리며, 그 결과 얻은 persistent SESSION 을 저장하므로 긴 idle 에도 재로그인 불필요. (참고: `docs/reverse-engineering/auth-notes.md` — Session Lifetime 섹션)
+
 ## [0.3.6] - 2026-04-17
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Auth Notes
 
-Verified from public page behavior on 2026-03-11. Last updated 2026-04-17 (v0.3.6 — `DEVICE_INFO` 요건 제거, HTTP 기본 UA 갱신).
+Verified from public page behavior on 2026-03-11. Last updated 2026-04-21 (persistent SESSION via "이 기기 로그인 유지" capture).
 
 ## Public Behavior
 
@@ -65,6 +65,33 @@ Instead:
 - whether request signing or CSRF tokens are needed for authenticated read endpoints
 - whether session state differs between phone and QR flows
 - whether the web app refreshes sessions silently
+
+## Session Lifetime
+
+Two distinct SESSION cookie shapes exist and their idle-timeout behavior differs:
+
+| SESSION kind | `Set-Cookie` attributes | Server idle timeout | Triggered by |
+|---|---|---|---|
+| session-scoped (default after QR) | `SESSION=...; Secure; HttpOnly; SameSite=Strict` (no `Max-Age`) | **≈1 hour sliding** — every authenticated call resets to `now + 1h` | `POST /api/v3/login/ticket` after QR auth step 1 |
+| persistent (long-lived) | `SESSION=...; Max-Age=31536000; Expires=<1 year ahead>; HttpOnly` | **Exempt** — survives multi-hour idle (verified with 60+ min idle probe, 200 OK after gap) | `POST /api/v1/wts-login-device/check-with-login` **after** user confirms "이 기기 로그인 유지" on phone |
+
+Consequences:
+- If the CLI captures storage state right after QR step 1 only, the saved SESSION is session-scoped and the CLI will 401 after ≈1h of inactivity.
+- To obtain the persistent SESSION the QR flow has a **second** confirmation step on the Toss app ("이 기기 로그인 유지"). The Python auth-helper waits for this before saving (`has_persistent_session_cookie` — SESSION `expires` > 1 week out).
+- `GET /api/v1/session/expired-at` returns the current session expiry as KST RFC3339. It also bumps the server-side idle timer (we could not isolate it as a pure read in tests).
+- No "silent re-auth via long-lived token" exists. Without a valid SESSION the server's `/api/v3/init` issues a fresh guest SESSION and the page redirects to `/signin`. `UTK/LTK/FTK/BTK` alone do not prove identity.
+- Browser tabs appear to "persist for days" only because (a) the dashboard polls authenticated APIs every 3–30 seconds while the tab is open (≈460 calls observed over 18 min of user idle), keeping the idle timer warm, or (b) the browser has a persistent SESSION from having confirmed "이 기기 로그인 유지".
+
+## Logout Behavior (Set-Cookie on 2xx)
+
+Several `wts-cert-api.tossinvest.com` endpoints respond to 2xx requests with `Set-Cookie: SESSION=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax` — an instruction to **delete** the client-side SESSION cookie. Observed at least on:
+
+- `GET /api/v1/dashboard/common/cached-orderable-amount`
+- `POST /api/v1/dashboard/asset/sections/all`
+- `POST /api/v2/dashboard/asset/sections/all`
+- `GET /api/v1/properties/member/shared`
+
+Browsers and the tossctl CLI both **ignore** this (CLI has no cookie jar; browsers apparently don't honor the delete either, because their existing SESSION has `SameSite=Strict` while the delete instruction carries `SameSite=Lax`, producing a cookie-jar mismatch). If the CLI ever adopts an `http.CookieJar` naively, it will self-destruct its session on these responses. The safe rule is: **never apply `SESSION=; Max-Age=0` delete instructions**.
 
 ## HTTP Client Fingerprinting
 
