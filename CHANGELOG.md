@@ -2,15 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.0] - 2026-04-23
 
 ### Added
-- **영속(Persistent) 세션 캡처** — `auth login` 이 폰의 "이 기기 로그인 유지" 2차 인증까지 기다린 뒤에 storage state 를 저장. 그 결과 `SESSION` 쿠키가 1년짜리 영속 쿠키로 저장되어 서버 idle timeout 면제 (≈1시간 후에도 401 나지 않음).
-- `auth status` / `auth import-playwright-state` 출력에 `Persistence` 필드 추가 — `persistent (expires ...)` 또는 `session-scoped (≈1h idle timeout)` 로 세션 수명 표시. JSON 출력에 `expires_at`, `persistent` 필드 포함.
-- **원격/헤드리스 로그인** — `tossctl auth login --headless`. QR 탭 자동 활성화 후 `/api/v2/login/wts/toss/{qr,status}` 응답 인터셉트로 QR URL과 확인 문자(answerLetter)를 stderr에 출력. 텔레그램 등으로 URL만 폰에 보내 탭하면 Toss 앱이 열려 카메라 없이 인증 가능. PNG 파일 저장은 `--qr-output <path>` (0600 권한).
+- **거래내역 ledger + cash overview** — `tossctl transactions list --market kr|us`로 매매, 입출금, 배당, 주식 입출고를 조회. `--from/--to`, `--filter all|trade|cash|inout|cash-alt`, `--all` 페이지네이션 지원. `tossctl transactions overview --market kr|us`는 주문가능/출금가능/예정입금 요약. table/JSON/CSV 출력 지원 (Toss 200일 단일쿼리 캡 반영). 기여: @skyisle (PR #20)
+- **영속(Persistent) 세션 캡처** — `auth login` 이 폰의 "이 기기 로그인 유지" 2차 인증까지 기다린 뒤 storage state 를 저장. 2차 인증 완료 시 Toss가 장기 SESSION 쿠키를 발급하므로 서버 idle timeout 면제 (≈1시간 후에도 401 안 남). `auth status` / `auth import-playwright-state` 출력에 `Persistence` 필드 추가 (`persistent (expires ...)` 또는 `session-scoped (≈1h idle timeout)`). JSON 출력에 `expires_at`, `persistent` 필드. 기여: @skyisle (PR #23)
+- **원격/헤드리스 로그인** — `tossctl auth login --headless`. QR 탭 자동 활성화 + `/api/v2/login/wts/toss/{qr,status}` 응답 인터셉트로 QR URL과 확인 문자(answerLetter)를 stderr 출력. 텔레그램 등으로 URL만 폰에 보내 탭하면 Toss 앱이 열려 카메라 없이 인증. PNG 파일 저장은 `--qr-output <path>` (0600 권한). 기여: @skyisle (PR #22, 보안 강화 후 merge)
+- **uv-managed Python 우선 탐지** — `auth login`이 helper Python을 찾을 때 `$TOSSCTL_AUTH_HELPER_PYTHON` → uv tool 관리 Python (`$UV_TOOL_DIR`, `$XDG_DATA_HOME/uv/tools`, `~/.local/share/uv/tools`, Windows `%APPDATA%/uv/tools`) → PATH의 `python3` 순서로 선택. `uv tool install ./auth-helper`로 전역 Python 오염 없이 helper 실행 가능. 기여: @keenranger (PR #21)
 
 ### Fixed
-- **1시간 뒤 401 재발** — 과거 `auth login` 이 QR 1차 인증 직후 종료하여 session-scoped SESSION 만 저장했고, 이로 인해 약 1시간 idle 후 서버가 세션을 invalidate 했던 문제. 이제 "이 기기 로그인 유지" 2차 확인까지 기다리며, 그 결과 얻은 persistent SESSION 을 저장하므로 긴 idle 에도 재로그인 불필요. (참고: `docs/reverse-engineering/auth-notes.md` — Session Lifetime 섹션)
+- **1시간 뒤 401 재발** — 과거 `auth login` 이 QR 1차 인증 직후 종료하여 session-scoped SESSION 만 저장했고, 약 1시간 idle 후 서버가 세션을 invalidate 하던 문제. "이 기기 로그인 유지" 2차 확인까지 기다려 persistent SESSION 저장하도록 변경. (참고: `docs/reverse-engineering/auth-notes.md` — Session Lifetime 섹션)
+
+### Security
+- 헤드리스 로그인의 `--qr-output` 파일을 `0o600` 권한으로 배타 쓰기 — 공유 머신에서 다른 사용자가 PNG 읽고 먼저 로그인 탭을 완료하는 시나리오 차단
+- QR 응답 인터셉트가 path뿐 아니라 host(`wts-api.tossinvest.com`)까지 검증 — 동일 path suffix의 타 origin 응답 파싱 방지
 
 ## [0.3.6] - 2026-04-17
 
