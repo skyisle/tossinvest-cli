@@ -97,6 +97,26 @@ func TestListenSendsCookiesAndConsumesStream(t *testing.T) {
 	}
 }
 
+func TestParseStreamSignalsConnectionClose(t *testing.T) {
+	raw := strings.Join([]string{
+		"id: 1",
+		`data: {"type":"share-holdings"}`,
+		"",
+		"event: connection-close",
+		"data: bye",
+		"",
+	}, "\n")
+
+	var got []Event
+	err := parseStream(strings.NewReader(raw), func(ev Event) { got = append(got, ev) })
+	if err == nil || err.Error() != "push: server requested reconnect" {
+		t.Fatalf("expected errConnectionClose, got %v", err)
+	}
+	if len(got) != 1 || got[0].Type != "share-holdings" {
+		t.Fatalf("expected only the share-holdings event before close, got: %+v", got)
+	}
+}
+
 func TestListenRejectsNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
