@@ -49,7 +49,7 @@ func NewService(permissionService *permissions.Service, policy config.Trading, b
 func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	canonical := orderintent.CanonicalPlace(intent)
 	warnings := []string{
-		"Live place supports US/KR buy/sell limit orders and US fractional (market) orders in KRW.",
+		"Live place supports US/KR buy/sell limit orders (US accepts KRW or USD price input) and US fractional (market) orders.",
 		"US orders may still require funding, FX consent, or product-risk acknowledgement before submission.",
 	}
 	liveReady := placeIntentSupported(intent)
@@ -238,13 +238,18 @@ func placeIntentSupported(intent orderintent.PlaceIntent) bool {
 		return false
 	}
 	if intent.Fractional {
-		// fractional orders: US market + market order, KRW or USD
+		// fractional: US market + market order, KRW or USD
 		return intent.Market == "us" && intent.OrderType == "market" &&
 			(intent.CurrencyMode == "KRW" || intent.CurrencyMode == "USD")
 	}
-	// non-fractional: KRW only, limit only
-	if intent.CurrencyMode != "KRW" {
+	// non-fractional: limit only. KR requires KRW. US accepts KRW
+	// (converted to USD via exchange rate at request time) or USD
+	// (sent to server as-is in the price field — see buildPlaceBody).
+	if intent.OrderType != "limit" {
 		return false
 	}
-	return intent.OrderType == "limit"
+	if intent.Market == "kr" {
+		return intent.CurrencyMode == "KRW"
+	}
+	return intent.CurrencyMode == "KRW" || intent.CurrencyMode == "USD"
 }

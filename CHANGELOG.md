@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **US 지정가 주문에서 USD 가격 입력 허용** — `order place --currency-mode USD --price 158.01 ...`. 기존엔 비 fractional 경로가 `CurrencyMode=KRW`만 허용해 `Live Ready=false`로 떨어졌음. 입력만 USD로 받고 와이어 페이로드는 기존과 동일하게 `currencyMode="KRW"`+USD 가격 필드 (캡처된 토스 웹 UI 스펙과 일치). `--currency-mode KRW`(기본)는 환율 변환 경로 그대로 유지.
+
 ## [0.4.3] - 2026-04-23
 
 ### Removed

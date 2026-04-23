@@ -816,24 +816,33 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 	var orderAmount float64
 	orderPriceType := "00" // limit
 
-	if intent.Fractional {
+	switch {
+	case intent.Fractional:
 		// Fractional: market order, amount-based
 		priceValue = 0
 		quantityValue = 0
 		orderAmount = math.Round(intent.Amount)
 		orderPriceType = "01" // market
-	} else if intent.Market == "kr" {
+	case intent.Market == "kr":
 		priceValue = intent.Price
 		quantityValue = intent.Quantity
-	} else {
+	case intent.CurrencyMode == "USD":
+		// US limit + USD input: price field carries USD as-is.
+		priceValue = round2(intent.Price)
+		quantityValue = intent.Quantity
+	default:
+		// US limit + KRW input: convert to USD using server-provided rate.
 		priceValue = round2(intent.Price / meta.ExchangeRate)
 		quantityValue = intent.Quantity
 	}
 
+	// Toss wire payload always uses currencyMode="KRW" even for US orders;
+	// the price field carries USD in that case. Matches every captured
+	// order/prepare body in docs/trading/rpc-catalog.md.
 	payload := map[string]any{
 		"stockCode":              productCode,
 		"market":                 marketCode,
-		"currencyMode":           intent.CurrencyMode,
+		"currencyMode":           "KRW",
 		"tradeType":              intent.Side,
 		"price":                  priceValue,
 		"quantity":               quantityValue,
