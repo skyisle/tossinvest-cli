@@ -26,14 +26,28 @@ body:
       description: 어떻게 동작해야 하나요?
     validations:
       required: false
+  - type: textarea
+    id: doctor_report
+    attributes:
+      label: tossctl doctor --report 출력
+      description: |
+        `tossctl doctor --report` 실행 결과를 그대로 붙여넣어 주세요. 버전, OS, Chrome, 세션 상태, 엔드포인트별 응답(200/401/403), 파일 권한, 남은 임시 파일까지 한 번에 확인할 수 있어 이슈 진단이 크게 빨라집니다. 홈 디렉토리 경로는 자동으로 `~`로 redact되어 사용자명이 노출되지 않습니다.
+      render: json
+      placeholder: |
+        {
+          "version": { "version": "0.4.x", ... },
+          "diagnostics": { "probes": [...], "file_modes": [...] }
+        }
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
-      label: tossctl version
-      description: "`tossctl version` 전체 출력을 붙여넣어 주세요."
-      placeholder: "tossctl 0.3.3 commit: ... date: ... os/arch: ..."
+      label: tossctl version (doctor --report를 실행할 수 없는 경우)
+      description: "`tossctl version` 출력. 위 doctor --report를 첨부했다면 생략 가능."
+      placeholder: "tossctl 0.4.x commit: ... date: ... os/arch: ..."
     validations:
-      required: true
+      required: false
   - type: dropdown
     id: os
     attributes:

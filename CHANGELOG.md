@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2026-04-23
+
+### Added
+- **`tossctl doctor --report`** — JSON 진단 번들. 기존 doctor 정보 + `wts-api` · `wts-cert-api` · `wts-info-api` 각 1회 실시간 probe (200/401/403 + 응답시간) + 파일 권한 audit (`session.json`/`config.json`/... 가 0600, 디렉토리 0700인지) + orphan intermediate 파일 탐지를 한 덩어리로 출력. 홈 디렉토리 경로는 `~`로 자동 redact되어 사용자명이 노출되지 않으므로 GitHub 이슈에 그대로 첨부 가능.
+- Issue 템플릿 `bug_report.yml`에 `tossctl doctor --report` 필드 추가 — 제보자가 실행 결과를 JSON으로 붙이면 유지보수자가 한눈에 환경·세션·엔드포인트 상태를 파악할 수 있음. 기존 `--report` 없이는 각 이슈마다 "어떤 endpoint가 403?" 을 개별로 물어봐야 했던 오버헤드 제거.
+
+### Notes
+- v0.4.1 이전에 생성된 tossctl 디렉토리(`~/Library/Application Support/tossctl/` 등)는 여전히 `0755` 모드로 남아있을 수 있음. `doctor --report`의 `file_modes` 항목에서 `expected: "0700"` 과 비교해 `ok: false`로 표시되며, 원하는 사용자는 `chmod 0700 <dir>` 로 수동 정리 가능. 기능에 영향 없음.
+
 ## [0.4.1] - 2026-04-23
 
 보안 하드닝 릴리즈. 전체 시스템을 점검하여 기능 영향 없이 좁힐 수 있는 부분만 적용.

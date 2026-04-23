@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
+	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 	"github.com/junghoonkye/tossinvest-cli/internal/version"
@@ -39,15 +41,36 @@ type AuthReport struct {
 }
 
 type Report struct {
-	Version    version.Info       `json:"version"`
-	GoVersion  string             `json:"go_version"`
-	OS         string             `json:"os"`
-	Arch       string             `json:"arch"`
-	Paths      config.Paths       `json:"paths"`
-	Config     config.Status      `json:"config"`
-	Permission permissions.Status `json:"permission"`
-	Auth       AuthReport         `json:"auth"`
-	Checks     []Check            `json:"checks"`
+	Version    version.Info                `json:"version"`
+	GoVersion  string                      `json:"go_version"`
+	OS         string                      `json:"os"`
+	Arch       string                      `json:"arch"`
+	Paths      config.Paths                `json:"paths"`
+	Config     config.Status               `json:"config"`
+	Permission permissions.Status          `json:"permission"`
+	Auth       AuthReport                  `json:"auth"`
+	Checks     []Check                     `json:"checks"`
+	Diagnostics *Diagnostics               `json:"diagnostics,omitempty"`
+}
+
+// Diagnostics captures extra signals that are only useful for bug reports /
+// maintenance — surfaced via `tossctl doctor --report`. Kept out of the
+// default Run() so that a plain `tossctl doctor` stays fast and does not hit
+// the network.
+type Diagnostics struct {
+	Probes        []tossclient.ProbeResult `json:"probes,omitempty"`
+	ProbeSkipped  string                   `json:"probe_skipped,omitempty"`
+	FileModes     []FileModeCheck          `json:"file_modes"`
+	OrphanFiles   []string                 `json:"orphan_files"`
+}
+
+type FileModeCheck struct {
+	Path     string `json:"path"`
+	Exists   bool   `json:"exists"`
+	IsDir    bool   `json:"is_dir,omitempty"`
+	Mode     string `json:"mode,omitempty"`     // "0600" / "0755"
+	Expected string `json:"expected,omitempty"` // "0600" / "0700"
+	OK       bool   `json:"ok"`
 }
 
 type authStatusReader interface {
@@ -56,6 +79,10 @@ type authStatusReader interface {
 
 type permissionStatusReader interface {
 	Status(context.Context) (permissions.Status, error)
+}
+
+type sessionProber interface {
+	Probe(context.Context) []tossclient.ProbeResult
 }
 
 type Service struct {
@@ -118,6 +145,144 @@ func (s *Service) Run(ctx context.Context) (Report, error) {
 		Auth:       authReport,
 		Checks:     checks,
 	}, nil
+}
+
+// RunReport extends Run() with extra diagnostics suitable for bug reports:
+// endpoint-family probes, file permission audit, and orphan cache file
+// detection. The caller passes a session-bound client (or nil to skip probe).
+// All paths in the returned Report are redacted to `~` — this output is meant
+// to be pasted into GitHub issues, so we must not leak the user's home dir
+// (which on macOS includes the account username).
+func (s *Service) RunReport(ctx context.Context, prober sessionProber) (Report, error) {
+	report, err := s.Run(ctx)
+	if err != nil {
+		return report, err
+	}
+
+	diag := &Diagnostics{
+		FileModes:   s.checkFileModes(),
+		OrphanFiles: s.checkOrphanFiles(),
+	}
+
+	if prober != nil && report.Auth.Session.Active {
+		diag.Probes = prober.Probe(ctx)
+	} else {
+		diag.ProbeSkipped = "no active session"
+	}
+
+	report.Diagnostics = diag
+	redactReport(&report)
+	return report, nil
+}
+
+// redactReport replaces the user's home directory prefix with `~` in every
+// path field surfaced by --report. Does not touch URLs, UA strings, or error
+// messages from network probes (those don't contain local PII).
+func redactReport(r *Report) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return
+	}
+
+	redact := func(s string) string {
+		if s == "" {
+			return s
+		}
+		if strings.HasPrefix(s, home) {
+			return "~" + s[len(home):]
+		}
+		return s
+	}
+
+	r.Paths.ConfigDir = redact(r.Paths.ConfigDir)
+	r.Paths.CacheDir = redact(r.Paths.CacheDir)
+	r.Paths.ConfigFile = redact(r.Paths.ConfigFile)
+	r.Paths.SessionFile = redact(r.Paths.SessionFile)
+	r.Paths.PermissionFile = redact(r.Paths.PermissionFile)
+	r.Paths.LineageFile = redact(r.Paths.LineageFile)
+
+	r.Config.ConfigFile = redact(r.Config.ConfigFile)
+	r.Permission.PermissionFile = redact(r.Permission.PermissionFile)
+
+	r.Auth.PythonBinary = redact(r.Auth.PythonBinary)
+	r.Auth.HelperDir = redact(r.Auth.HelperDir)
+	r.Auth.Session.SessionFile = redact(r.Auth.Session.SessionFile)
+
+	for i := range r.Checks {
+		r.Checks[i].Summary = redact(r.Checks[i].Summary)
+		r.Checks[i].Detail = redact(r.Checks[i].Detail)
+	}
+	for i := range r.Auth.Checks {
+		r.Auth.Checks[i].Summary = redact(r.Auth.Checks[i].Summary)
+		r.Auth.Checks[i].Detail = redact(r.Auth.Checks[i].Detail)
+	}
+
+	if r.Diagnostics != nil {
+		for i := range r.Diagnostics.FileModes {
+			r.Diagnostics.FileModes[i].Path = redact(r.Diagnostics.FileModes[i].Path)
+		}
+		for i := range r.Diagnostics.OrphanFiles {
+			r.Diagnostics.OrphanFiles[i] = redact(r.Diagnostics.OrphanFiles[i])
+		}
+	}
+}
+
+// checkFileModes verifies tossctl's state files are 0600 and state dirs 0700.
+// Reports existing-only (missing files are not a failure; checkFile covers that).
+func (s *Service) checkFileModes() []FileModeCheck {
+	dirs := []string{s.paths.ConfigDir}
+	// CacheDir may equal ConfigDir on Linux; dedup.
+	if s.paths.CacheDir != "" && s.paths.CacheDir != s.paths.ConfigDir {
+		dirs = append(dirs, s.paths.CacheDir)
+	}
+	files := []string{
+		s.paths.ConfigFile,
+		s.paths.SessionFile,
+		s.paths.PermissionFile,
+		s.paths.LineageFile,
+	}
+
+	checks := make([]FileModeCheck, 0, len(dirs)+len(files))
+	for _, d := range dirs {
+		checks = append(checks, inspectMode(d, true, 0o700))
+	}
+	for _, f := range files {
+		checks = append(checks, inspectMode(f, false, 0o600))
+	}
+	return checks
+}
+
+func inspectMode(path string, isDir bool, expected os.FileMode) FileModeCheck {
+	check := FileModeCheck{Path: path, IsDir: isDir, Expected: fmt.Sprintf("%#o", expected)}
+	info, err := os.Stat(path)
+	if err != nil {
+		// Non-existence is not a failure here — the regular Run() Checks
+		// already report file presence. Report as OK=true so --report
+		// doesn't flag fresh installs.
+		check.OK = true
+		return check
+	}
+	check.Exists = true
+	mode := info.Mode().Perm()
+	check.Mode = fmt.Sprintf("%#o", mode)
+	check.OK = mode == expected
+	return check
+}
+
+// checkOrphanFiles looks for intermediate state files that should have been
+// cleaned up after a successful login (see LoginWith in internal/auth). Their
+// presence means either a login mid-failure or a pre-0.4.1 leftover.
+func (s *Service) checkOrphanFiles() []string {
+	candidates := []string{
+		filepath.Join(s.paths.CacheDir, "auth", "playwright-storage-state.json"),
+	}
+	var orphans []string
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			orphans = append(orphans, p)
+		}
+	}
+	return orphans
 }
 
 func (s *Service) RunAuth(ctx context.Context) (AuthReport, error) {
