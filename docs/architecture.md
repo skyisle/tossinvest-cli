@@ -201,12 +201,10 @@ sequenceDiagram
 거래 mutation은 아래 순서로 열립니다.
 
 1. `config.json`
-   - `grant`
-   - `place`
-   - `cancel`
-   - `amend`
-   - `allow_live_order_actions`
-   - `dangerous_automation.*`
+   - **경로 게이트:** `place`, `cancel`, `amend` (broker API 분기별 허용)
+   - **스코프 선언:** `sell`, `kr`, `fractional` (유저 자가 제한)
+   - **마스터 킬스위치:** `allow_live_order_actions` (실계좌 도달 차단)
+   - **자동화:** `dangerous_automation.accept_fx_consent`
 2. `order permissions grant --ttl ...`
 3. `--execute`
 4. `--dangerously-skip-permissions`
@@ -214,15 +212,20 @@ sequenceDiagram
 
 즉, config가 열려 있어도 매번 CLI 실행 시점의 명시적 확인이 필요합니다.
 
+> `v0.4.3`에서 `trading.grant`, `dangerous_automation.complete_trade_auth`, `dangerous_automation.accept_product_ack`는 제거되었습니다 — 모두 실제로 어떤 동작도 제어하지 않던 dead toggle이었습니다. 구 config에 남아있어도 무시되며 `tossctl doctor`의 `legacy_config` 체크에서 감지됩니다.
+
 ## Local State
 
 로컬 상태는 아래 파일로 관리됩니다.
 
-| File | Role |
-|---|---|
-| `config.json` | 거래 기능 허용 여부 |
-| `session.json` | 브라우저에서 가져온 세션 |
-| `trading-permission.json` | 짧은 TTL의 거래 grant |
+| File | Role | Mode |
+|---|---|---|
+| `config.json` | 거래 기능 허용 여부 | `0o600` |
+| `session.json` | 브라우저에서 가져온 세션 (쿠키 + storage) | `0o600` |
+| `trading-permission.json` | 짧은 TTL의 거래 grant | `0o600` |
+| `trading-lineage.json` | amend/cancel 후 order ref 추적 | `0o600` |
+
+상태 디렉토리 (`~/Library/Application Support/tossctl/` 등)는 `0o700` 으로 생성되어 같은 호스트의 다른 사용자가 목록 조회 못함. 기존 v0.4.0 이전에 생성된 디렉토리는 `0o755`로 남아있을 수 있으므로 `tossctl doctor --report` 의 `file_modes` 항목에서 확인 + 필요 시 `chmod 0700` 수동 정리.
 
 기본 경로는 `tossctl doctor`와 `tossctl config show`로 확인할 수 있습니다.
 

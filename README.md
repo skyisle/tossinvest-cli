@@ -311,6 +311,7 @@ tossctl order permissions revoke
 ```bash
 tossctl version
 tossctl doctor
+tossctl doctor --report     # JSON 진단 번들 (이슈 첨부용, 경로 자동 redact)
 tossctl config init
 tossctl config show
 tossctl auth login
@@ -346,6 +347,9 @@ US/KR 지정가 매수/매도, US 소수점 매수, 당일 미체결 취소가 l
 
 **왜 Playwright가 필요한가요?**
 로그인 세션을 브라우저 흐름으로 확보하기 위해 필요합니다. 조회/거래 로직은 Go CLI에 구현되어 있습니다.
+
+**뭔가 깨진 것 같아요. 어디서부터 확인하나요?**
+`tossctl doctor --report` 를 실행하고 JSON 출력을 GitHub 이슈에 그대로 붙여주세요. 버전, OS, Chrome 버전, 세션 상태, `wts-api`/`wts-cert-api`/`wts-info-api` 3개 엔드포인트 실시간 응답(200/401/403), 파일 권한, 남은 임시 파일까지 한 번에 확인할 수 있어 대부분의 회귀를 빠르게 원인 파악할 수 있습니다. 홈 디렉토리 경로는 자동으로 `~`로 redact되어 사용자명이 노출되지 않습니다.
 
 ## 문서
 
