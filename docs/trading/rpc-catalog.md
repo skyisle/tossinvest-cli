@@ -443,6 +443,7 @@ Current inference:
 - amend sends USD price precision even while `currencyMode` remains `KRW`
 - the browser-side USD conversion matched `700 / 1472.8 = 0.4753`
 - `withOrderKey` appears on `correct/prepare` but not on `correct`
+- CLI behaviour (`tossctl order place`): `--currency-mode KRW` (default) divides the input by the live exchange rate before sending; `--currency-mode USD` sends the USD value as-is. In both cases the wire payload keeps `currencyMode: "KRW"` to match every captured order/prepare body.
 
 ### Pending Order Inline Cancel Path
 

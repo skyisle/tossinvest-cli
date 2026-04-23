@@ -427,6 +427,48 @@ func TestBuildPlaceBodySellTradeType(t *testing.T) {
 	}
 }
 
+func TestBuildPlaceBodyUSDLimitPriceAsIs(t *testing.T) {
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "MRVL",
+		Market:       "us",
+		Side:         "buy",
+		OrderType:    "limit",
+		Quantity:     1,
+		Price:        158.01,
+		CurrencyMode: "USD",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	// ExchangeRate deliberately non-1 to prove the USD path ignores it.
+	meta := stockPriceMetadata{Close: 158.01, CloseKRW: 233000, ExchangeRate: 1477.6}
+
+	body, err := buildPlaceBody("US20000627001", "NSQ", intent, meta, true)
+	if err != nil {
+		t.Fatalf("buildPlaceBody returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	// USD input: price must be sent as-is, not divided by ExchangeRate.
+	if payload["price"] != 158.01 {
+		t.Fatalf("expected USD price 158.01 as-is, got %v", payload["price"])
+	}
+	// Wire payload must keep currencyMode=KRW (Toss spec) even when CLI input was USD.
+	if payload["currencyMode"] != "KRW" {
+		t.Fatalf("expected wire currencyMode KRW, got %v", payload["currencyMode"])
+	}
+	if payload["orderPriceType"] != "00" {
+		t.Fatalf("expected limit orderPriceType 00, got %v", payload["orderPriceType"])
+	}
+	if payload["allowAutoExchange"] != true {
+		t.Fatal("expected allowAutoExchange=true for US orders")
+	}
+}
+
 func TestBuildPlaceBodyKRRawKRWPrice(t *testing.T) {
 	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
 		Symbol:       "290080",

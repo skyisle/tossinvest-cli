@@ -429,6 +429,20 @@ func TestPlaceIntentSupportedRejectsFractionalLimit(t *testing.T) {
 	}
 }
 
+func TestPlaceIntentSupportedAcceptsUSLimitUSD(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "MRVL", Market: "us", Side: "buy", OrderType: "limit", Quantity: 1, Price: 158.01, CurrencyMode: "USD"}
+	if !placeIntentSupported(intent) {
+		t.Fatal("expected true for US limit order with USD price input")
+	}
+}
+
+func TestPlaceIntentSupportedRejectsKRLimitUSD(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "limit", Quantity: 1, Price: 10, CurrencyMode: "USD"}
+	if placeIntentSupported(intent) {
+		t.Fatal("expected false for KR limit order with USD price input")
+	}
+}
+
 func TestPlaceIntentSupportedRejectsFractionalKR(t *testing.T) {
 	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Amount: 8000, CurrencyMode: "KRW", Fractional: true}
 	if placeIntentSupported(intent) {
