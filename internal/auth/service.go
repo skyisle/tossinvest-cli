@@ -15,6 +15,8 @@ type LoginConfig struct {
 	PythonBin        string
 	HelperDir        string
 	StorageStatePath string
+	Headless         bool
+	QROutputPath     string
 }
 
 type Options struct {
@@ -165,7 +167,11 @@ func NewService(store session.Store, sessionFile string, opts Options) *Service 
 }
 
 func (s *Service) Login(ctx context.Context) (*session.Session, error) {
-	result, err := s.runner.Login(ctx, s.loginConfig)
+	return s.LoginWith(ctx, s.loginConfig)
+}
+
+func (s *Service) LoginWith(ctx context.Context, cfg LoginConfig) (*session.Session, error) {
+	result, err := s.runner.Login(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

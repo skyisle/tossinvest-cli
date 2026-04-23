@@ -43,3 +43,15 @@ The helper emits JSON on stdout. On success it returns `status=ok` and the path 
 3. PATH 상의 `python3`
 
 즉 `uv tool install ./auth-helper` 또는 `uv tool install playwright`로 준비해 두면 전역 python 환경을 오염시키지 않고 helper를 실행할 수 있습니다. 다른 Python을 쓰고 싶을 때는 `TOSSCTL_AUTH_HELPER_PYTHON`으로 덮어쓰면 됩니다.
+
+### Remote / CLI-only login (headless)
+
+```bash
+python3 -m tossctl_auth_helper login \
+  --storage-state /tmp/tossctl-storage-state.json \
+  --headless
+```
+
+stderr에 QR URL과 확인 문자가 출력됨. URL을 텔레그램 등으로 폰에 보내 탭 → Toss 앱이 열림 → 확인 문자 선택 → 완료. PNG 저장이 필요하면 `--qr-output <path>` (0600 권한).
+
+Go CLI에서는 `tossctl auth login --headless [--qr-output <path>]`.

@@ -6,8 +6,10 @@ Verified from public page behavior on 2026-03-11. Last updated 2026-04-21 (persi
 
 - Navigating to `https://www.tossinvest.com/account` without an authenticated session redirected to `https://www.tossinvest.com/signin?redirectUrl=%2Faccount`.
 - The sign-in page exposed two visible entry modes:
-  - phone-based login
-  - QR-code login
+  - phone-based login → plain `<button>` with visible text `휴대폰 번호로 로그인`
+  - QR-code login → plain `<button>` with visible text `QR코드로 로그인`
+  - secondary link: `토스 앱 없이 로그인하기`
+  - signin 페이지에는 `role="tab"` 엘리먼트가 없음 — 두 모드 모두 `<button>`로 토글 (verified 2026-04-20)
 - Public network activity on the sign-in page included `POST https://wts-api.tossinvest.com/api/v2/login/wts/toss/cert-init`.
 
 ## Authenticated Browser Observations

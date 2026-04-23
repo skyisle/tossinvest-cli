@@ -18,24 +18,39 @@ func newAuthCmd(opts *rootOptions) *cobra.Command {
 		Short: "Manage Toss Securities session state",
 	}
 
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "login",
-			Short: "Start browser-assisted login",
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				app, err := newAppContext(opts)
-				if err != nil {
-					return err
-				}
+	var (
+		loginHeadless bool
+		loginQROutput string
+	)
 
-				sess, err := app.authService.Login(cmd.Context())
-				if err != nil {
-					return err
-				}
+	loginCmd := &cobra.Command{
+		Use:   "login",
+		Short: "Start browser-assisted login",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app, err := newAppContext(opts)
+			if err != nil {
+				return err
+			}
 
-				return writeImportResult(cmd.OutOrStdout(), app.format, app.paths.SessionFile, sess)
-			},
+			cfg := app.loginConfig
+			cfg.Headless = loginHeadless
+			if loginQROutput != "" {
+				cfg.QROutputPath = loginQROutput
+			}
+
+			sess, err := app.authService.LoginWith(cmd.Context(), cfg)
+			if err != nil {
+				return err
+			}
+
+			return writeImportResult(cmd.OutOrStdout(), app.format, app.paths.SessionFile, sess)
 		},
+	}
+	loginCmd.Flags().BoolVar(&loginHeadless, "headless", false, "Run Chrome headless (required for remote/CLI-only login)")
+	loginCmd.Flags().StringVar(&loginQROutput, "qr-output", "", "Path to write the current QR PNG (forward to phone via messenger)")
+
+	cmd.AddCommand(
+		loginCmd,
 		&cobra.Command{
 			Use:   "import-playwright-state <path>",
 			Short: "Import Playwright storage state into tossctl session storage",
