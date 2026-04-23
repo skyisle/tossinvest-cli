@@ -826,7 +826,7 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 	case intent.Market == "kr":
 		priceValue = intent.Price
 		quantityValue = intent.Quantity
-	case intent.CurrencyMode == "USD":
+	case intent.Market == "us" && intent.CurrencyMode == "USD":
 		// US limit + USD input: price field carries USD as-is.
 		priceValue = round2(intent.Price)
 		quantityValue = intent.Quantity

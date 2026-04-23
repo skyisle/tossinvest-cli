@@ -2,10 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.4] - 2026-04-23
 
 ### Added
-- **US 지정가 주문에서 USD 가격 입력 허용** — `order place --currency-mode USD --price 158.01 ...`. 기존엔 비 fractional 경로가 `CurrencyMode=KRW`만 허용해 `Live Ready=false`로 떨어졌음. 입력만 USD로 받고 와이어 페이로드는 기존과 동일하게 `currencyMode="KRW"`+USD 가격 필드 (캡처된 토스 웹 UI 스펙과 일치). `--currency-mode KRW`(기본)는 환율 변환 경로 그대로 유지.
+- **US 지정가 주문에서 USD 가격 입력 허용** — `order place --currency-mode USD --price 158.01 ...`. 기존엔 비 fractional 경로가 `CurrencyMode=KRW`만 허용해 `Live Ready=false`로 떨어졌음. 입력만 USD로 받고 와이어 페이로드는 기존과 동일하게 `currencyMode="KRW"`+USD 가격 필드 (캡처된 토스 웹 UI 스펙과 일치). `--currency-mode KRW`(기본)는 환율 변환 경로 그대로 유지. 기여: @skyisle (PR #24)
+
+### Changed
+- `buildPlaceBody`의 USD branch 가드를 `case intent.Market == "us" && intent.CurrencyMode == "USD"`로 명시화 — 향후 market 추가 시 암묵적 fall-through 방지 (현재 `placeIntentSupported` 화이트리스트로 안전하지만 defense-in-depth)
 
 ## [0.4.3] - 2026-04-23
 
