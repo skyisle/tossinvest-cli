@@ -19,10 +19,14 @@ func (e *StatusError) Error() string {
 
 
 
+// AuthError intentionally does not carry the response body: 401/403 bodies
+// from wts-api / wts-cert-api can echo CSRF diagnostics or session-identifying
+// fragments, and no caller reads it — only status + endpoint are surfaced to
+// users. Dropping the field means debug `%+v` or accidental error-value
+// serialization can't leak those fragments.
 type AuthError struct {
 	StatusCode int
 	Endpoint   string
-	Body       string
 }
 
 func (e *AuthError) Error() string {
@@ -43,18 +47,16 @@ func IsAuthError(err error) bool {
 }
 
 func newStatusError(statusCode int, endpoint string, body []byte) error {
-	bodyText := string(body)
 	if statusCode == 401 || statusCode == 403 {
 		return &AuthError{
 			StatusCode: statusCode,
 			Endpoint:   endpoint,
-			Body:       bodyText,
 		}
 	}
 
 	return &StatusError{
 		StatusCode: statusCode,
 		Endpoint:   endpoint,
-		Body:       bodyText,
+		Body:       string(body),
 	}
 }

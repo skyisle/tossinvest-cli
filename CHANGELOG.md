@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-04-23
+
+보안 하드닝 릴리즈. 전체 시스템을 점검하여 기능 영향 없이 좁힐 수 있는 부분만 적용.
+
+### Security
+- **Intermediate storage-state 파일 권한 0o600 고정** — Python helper가 저장하는 `~/Library/Caches/tossctl/auth/playwright-storage-state.json`은 이전엔 default umask(보통 0o644)를 따라 쓰였음. `os.open(..., O_CREAT|O_WRONLY|O_TRUNC, 0o600)` + `os.fchmod(0o600)`로 기존 파일 유무와 관계없이 항상 소유자만 읽도록 변경. Go CLI가 session.json으로 복사하기 전 찰나의 창에 같은 호스트의 다른 로컬 사용자가 전체 쿠키 세트를 읽을 수 있던 공격면 차단.
+- **`--qr-output` PNG 권한 강제 0o600** — 동일 `fchmod` 패턴 적용. 기존 파일이 이미 0o644로 존재해도 overwrite 시 명시적으로 좁힘.
+- **Intermediate storage-state 파일 로그인 성공 후 자동 삭제** — `LoginWith`가 `ImportPlaywrightState` 성공 직후 `os.Remove(result.StorageStatePath)` 호출. 같은 쿠키의 중복 사본이 cache dir에 무기한 남던 문제 해결 (`auth logout`은 session.json만 지웠음). 사용자가 직접 부르는 `auth import-playwright-state <path>`는 경유하지 않으므로 외부 파일은 그대로 유지.
+- **tossctl 상태 디렉토리 권한 0o755 → 0o700** — `session/store.go`, `config/service.go`, `permissions/service.go`, `orderlineage/service.go`의 `os.MkdirAll` 모드 좁힘. macOS `~/Library/Application Support`는 부모 디렉토리가 이미 0o700이라 영향 미미하지만 Linux/CI 환경에선 같은 호스트의 다른 사용자가 `tossctl/` 디렉토리 목록을 열람 가능하던 문제 차단.
+- **`AuthError`에서 응답 본문(Body) 필드 제거** — `wts-api` / `wts-cert-api`의 401/403 응답 본문엔 CSRF 진단이나 세션 식별자 조각이 포함될 수 있음. 현재 어떤 caller도 `AuthError.Body`를 읽지 않지만, 향후 `%+v` 디버그 로그나 에러 값 직렬화 시 유출될 수 있어 필드 자체를 제거. `StatusError.Body`는 trading broker 메시지 분류에 실제로 사용되므로 유지.
+
 ## [0.4.0] - 2026-04-23
 
 ### Added

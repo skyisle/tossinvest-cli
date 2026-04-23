@@ -176,7 +176,20 @@ func (s *Service) LoginWith(ctx context.Context, cfg LoginConfig) (*session.Sess
 		return nil, err
 	}
 
-	return s.ImportPlaywrightState(ctx, result.StorageStatePath)
+	sess, err := s.ImportPlaywrightState(ctx, result.StorageStatePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// The helper-managed storage-state file holds a redundant copy of the full
+	// cookie set (SESSION/UTK/LTK/FTK/XSRF-TOKEN) that we have just persisted
+	// into session.json. Remove it so `auth logout` (which only clears
+	// session.json) doesn't leave live credentials in the cache directory.
+	// User-invoked `import-playwright-state <path>` does NOT pass through here,
+	// so externally-supplied files are never deleted.
+	_ = os.Remove(result.StorageStatePath)
+
+	return sess, nil
 }
 
 func (s *Service) Status(ctx context.Context) (Status, error) {

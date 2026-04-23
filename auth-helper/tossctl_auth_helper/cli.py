@@ -181,7 +181,8 @@ def decode_qr_url(page) -> str | None:
 def save_qr_png(data_uri: str, output_path: Path) -> bool:
     # Write with 0600 permissions so other local users cannot read the QR and
     # complete login before the intended phone holder does. Overwrite on each
-    # refresh (QR rotates during the login window).
+    # refresh (QR rotates during the login window). fchmod after open tightens
+    # the mode even when the path already exists at a looser permission.
     try:
         _, _, b64 = data_uri.partition(",")
         if not b64:
@@ -193,6 +194,7 @@ def save_qr_png(data_uri: str, output_path: Path) -> bool:
             0o600,
         )
         try:
+            os.fchmod(fd, 0o600)
             os.write(fd, payload)
         finally:
             os.close(fd)
@@ -341,10 +343,24 @@ def command_login(args: argparse.Namespace) -> int:
                     page.wait_for_timeout(1500)
                     storage_state = context.storage_state()
                     final_cookie_count = len(storage_state.get("cookies", []))
-                    storage_state_path.write_text(
-                        json.dumps(storage_state, indent=2),
-                        encoding="utf-8",
+                    # Write with 0o600 so the intermediate storage-state file
+                    # (full SESSION cookie + other auth tokens) is never
+                    # world-readable on a shared host, even before the Go CLI
+                    # copies it into the protected session-file path. fchmod
+                    # after open handles the case where the file already
+                    # exists with looser permissions — O_TRUNC alone would
+                    # keep the old mode.
+                    payload = json.dumps(storage_state, indent=2).encode("utf-8")
+                    fd = os.open(
+                        storage_state_path,
+                        os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
+                        0o600,
                     )
+                    try:
+                        os.fchmod(fd, 0o600)
+                        os.write(fd, payload)
+                    finally:
+                        os.close(fd)
                     browser.close()
                     return emit(
                         {

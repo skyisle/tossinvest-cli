@@ -229,7 +229,7 @@ func (s *Service) load() (File, bool, legacyMetadata, error) {
 }
 
 func (s *Service) save(cfg File) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
 

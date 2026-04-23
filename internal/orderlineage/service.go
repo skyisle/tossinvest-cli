@@ -178,7 +178,7 @@ func (s *Service) load() (File, error) {
 }
 
 func (s *Service) save(state File) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
 

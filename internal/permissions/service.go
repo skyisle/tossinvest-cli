@@ -119,7 +119,7 @@ func (s *Service) load(context.Context) (Grant, error) {
 }
 
 func (s *Service) save(_ context.Context, grant Grant) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
 
