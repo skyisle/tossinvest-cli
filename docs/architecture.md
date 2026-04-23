@@ -12,8 +12,11 @@
 현재 구현 범위는 아래와 같습니다.
 
 - 브라우저 로그인 기반 세션 저장과 재사용
+  - QR 1차 + "이 기기 로그인 유지" 2차 확인까지 대기 후 저장 → persistent SESSION (서버 idle timeout 면제)
+  - headless 모드 지원 — `auth login --headless [--qr-output <path>]` (SSH/CI 환경용)
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
 - `orders completed`, `order show <id>` 기반 주문 상태 조회
+- 거래내역 ledger: `transactions list/overview` — 매매/입출금/배당/주식입출고 + 현금 overview (KR/US, table/JSON/CSV, 200일 캡)
 - 거래 베타
   - `US/KR buy/sell limit` + `US fractional (market)`
   - sell: `trading.sell=true`, KR: `trading.kr=true`, fractional: `trading.fractional=true`

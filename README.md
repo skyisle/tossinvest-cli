@@ -89,6 +89,9 @@ tossctl account summary --output json
 > 이 2차 확인을 건너뛰면 세션이 약 1시간 idle 후 만료되어 재로그인이 필요해집니다.
 > 정상 캡처 여부는 `tossctl auth status` 의 `Persistence: persistent cookie (expires ...)` 로 확인할 수 있습니다.
 
+> **GUI 없는 환경 (SSH 서버·CI):** `tossctl auth login --headless [--qr-output /tmp/toss-qr.png]`.
+> QR URL 과 확인 문자(answerLetter)가 stderr 로 출력되며, URL 을 폰으로 전달해 탭하면 카메라 없이 Toss 앱에서 인증할 수 있습니다. `--qr-output` 파일은 `0600` 권한으로 저장됩니다.
+
 ## 지원 범위
 
 ### 조회 (읽기 전용)
@@ -102,7 +105,9 @@ tossctl account summary --output json
 | 체결 내역 | `orders completed --market us\|kr\|all` | O | O |
 | 단건 주문 조회 | `order show <id>` | O | O |
 | 관심 종목 | `watchlist list` | O | O |
-| CSV 내보내기 | `export positions --market`, `export orders --market` | O | O |
+| 거래내역 ledger | `transactions list --market us\|kr` (매매·입출금·배당·입출고) | O | O |
+| 현금 overview | `transactions overview --market us\|kr` (주문가능·출금가능·예정입금) | O | O |
+| CSV 내보내기 | `export positions --market`, `export orders --market`, `transactions list --output csv` | O | O |
 
 ### 거래
 
