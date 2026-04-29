@@ -1,7 +1,7 @@
 <div align="center">
   <h1>tossinvest-cli</h1>
-  <p>토스증권 웹 세션을 재사용해 조회와 거래를 터미널에서 다루기 위한 비공식 CLI입니다.</p>
-  <p>실행 바이너리는 <code>tossctl</code>입니다.</p>
+  <p><strong>AI 에이전트를 토스증권에 연결하는 비공식 CLI.</strong></p>
+  <p>Claude Code · Codex · Cursor · OpenClaw · bash · HTTP — 어떤 도구든 동일한 명령 표면(<code>tossctl</code>)으로 토스증권 계좌·시세·거래를 다룰 수 있습니다. 사람이 직접 터미널에서 쓸 수도 있습니다.</p>
 </div>
 
 <p align="center">
