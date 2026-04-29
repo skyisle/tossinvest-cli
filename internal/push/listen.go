@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
 const (
 	defaultStreamURL = "https://sse-message.tossinvest.com/api/v1/wts-notification"
-	defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 	initialBackoff   = 2 * time.Second
 	maxBackoff       = 60 * time.Second
 )
@@ -86,7 +86,7 @@ func (l *Listener) Listen(ctx context.Context, handler func(Event)) error {
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("User-Agent", defaultUserAgent)
+	req.Header.Set("User-Agent", tossclient.DefaultBrowserUserAgent)
 	req.Header.Set("Referer", "https://www.tossinvest.com/")
 	req.Header.Set("Origin", "https://www.tossinvest.com")
 	for name, value := range l.session.Cookies {

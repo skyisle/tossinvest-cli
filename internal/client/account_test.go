@@ -16,7 +16,7 @@ func TestAuthenticatedAccountMethodsFromFixtures(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("User-Agent"); got != defaultBrowserUserAgent {
+		if got := r.Header.Get("User-Agent"); got != DefaultBrowserUserAgent {
 			t.Fatalf("unexpected user agent: %q", got)
 		}
 		fixturePath := authenticatedFixturePathForRequest(t, r.URL.Path)

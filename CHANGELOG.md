@@ -2,10 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.5] - 2026-04-29
 
 ### Added
-- **`tossctl push listen` — SSE 푸시 리스너** — 토스증권 웹이 `GET https://sse-message.tossinvest.com/api/v1/wts-notification` 로 제공하는 Server-Sent Events 채널 구독. 세션 쿠키 재사용, JSONL 로 stdout 출력, 기본 exponential backoff 재연결 (`--retry=false` 로 비활성 가능). Toss 는 thin notification 방식이라 payload 대신 `{"type":"pending-order-refresh",...}` 같은 "재조회하라" 신호만 내려줌. 구독 가능한 이벤트 타입과 의미는 `docs/reverse-engineering/push-events.md` 에 정리.
+- **`tossctl push listen` — SSE 푸시 리스너** — 토스증권 웹이 `GET https://sse-message.tossinvest.com/api/v1/wts-notification` 로 제공하는 Server-Sent Events 채널 구독. 세션 쿠키 재사용, JSONL 로 stdout 출력, 기본 exponential backoff 재연결 (`--retry=false` 로 비활성 가능), 토스 서버의 graceful `event: connection-close` 핸드오프 즉시 재연결. Toss 는 thin notification 방식이라 payload 대신 `{"type":"pending-order-refresh",...}` 같은 "재조회하라" 신호만 내려줌 (관찰된 이벤트 타입: `pending-order-refresh`, `purchase-price-refresh`, `share-holdings`, `web-push` 등). 구독 가능한 이벤트 타입과 의미는 `docs/reverse-engineering/push-events.md` 에 정리. 기여: @skyisle (PR #25)
+
+### Changed
+- **공통 User-Agent 상수 통합** — `client.defaultBrowserUserAgent` (private) 를 `client.DefaultBrowserUserAgent` (export) 로 승격하고 `internal/push` 도 동일 상수 재사용. 기존엔 두 패키지에 동일 Chrome UA 문자열이 중복돼 있어 향후 Chrome 버전 bump 시 두 곳을 동기화해야 했음 — 이제 한 군데만 수정하면 `wts-api`/`wts-cert-api`/`wts-info-api`/`sse-message` 전 채널 fingerprint가 같이 갱신됨.
 
 ## [0.4.4] - 2026-04-23
 

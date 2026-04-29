@@ -18,7 +18,14 @@ import (
 const defaultAPIBaseURL = "https://wts-api.tossinvest.com"
 const defaultInfoBaseURL = "https://wts-info-api.tossinvest.com"
 const defaultCertBaseURL = "https://wts-cert-api.tossinvest.com"
-const defaultBrowserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+// DefaultBrowserUserAgent is the User-Agent that tossctl HTTP traffic uses
+// when the caller does not set one explicitly. Toss servers (wts-api,
+// wts-cert-api, wts-info-api, sse-message) reject the default Go HTTP UA with
+// 403; matching a current Chrome string keeps the fingerprint coherent.
+// Exported so packages outside `client` (e.g. `internal/push` for the SSE
+// listener) can reuse the same string instead of drifting copies — bumping
+// the Chrome version is a single-edit operation.
+const DefaultBrowserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 
 type Config struct {
 	HTTPClient    *http.Client
