@@ -30,6 +30,7 @@ type appContext struct {
 	loginConfig       auth.LoginConfig
 	authService       *auth.Service
 	client            *tossclient.Client
+	session           *session.Session
 	permissionService *permissions.Service
 	lineageService    *orderlineage.Service
 	tradingService    *trading.Service
@@ -82,6 +83,7 @@ func newRootCmd() *cobra.Command {
 		newQuoteCmd(opts),
 		newOrderCmd(opts),
 		newExportCmd(opts),
+		newPushCmd(opts),
 	)
 
 	return cmd
@@ -139,6 +141,7 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 			Validator:   client,
 		}),
 		client:            client,
+		session:           sess,
 		permissionService: permissionService,
 		lineageService:    orderlineage.NewService(paths.LineageFile),
 		tradingService:    trading.NewService(permissionService, cfg.Trading, client),
