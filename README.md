@@ -309,6 +309,15 @@ tossctl order permissions status
 tossctl order permissions revoke
 ```
 
+### 실시간 푸시
+
+```bash
+tossctl push listen              # SSE 구독, JSONL stdout (Ctrl+C 종료)
+tossctl push listen --retry=false  # 재연결 비활성
+```
+
+토스 웹의 SSE 채널을 그대로 구독해 `pending-order-refresh` · `purchase-price-refresh` · `share-holdings` · `web-push` 이벤트를 JSONL로 흘립니다. 이벤트 분류와 후속 재조회 매핑은 [`docs/reverse-engineering/push-events.md`](docs/reverse-engineering/push-events.md).
+
 ### 시스템
 
 ```bash

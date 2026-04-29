@@ -17,6 +17,7 @@
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
 - `orders completed`, `order show <id>` 기반 주문 상태 조회
 - 거래내역 ledger: `transactions list/overview` — 매매/입출금/배당/주식입출고 + 현금 overview (KR/US, table/JSON/CSV, 200일 캡)
+- 실시간 푸시: `push listen` — 토스 SSE 채널(`sse-message.tossinvest.com`) 구독으로 주문/가격/보유종목 변경 알림을 JSONL 스트림으로 출력 (이벤트 분류는 [`docs/reverse-engineering/push-events.md`](reverse-engineering/push-events.md))
 - 거래 베타
   - `US/KR buy/sell limit` + `US fractional (market)`
   - sell: `trading.sell=true`, KR: `trading.kr=true`, fractional: `trading.fractional=true`
