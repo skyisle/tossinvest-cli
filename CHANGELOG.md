@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`order place --type market --qty <shares>` — 비-fractional 시장가 주문 (US/KR)** — 기존엔 `--fractional`(US 전용, 금액 기반)만 시장가였고 일반 시장가는 `placeIntentSupported`에서 거절됐음. 이제 `--type market --qty 1 --market kr|us` 로 정수 수량 시장가 주문 가능. 와이어는 `orderPriceType="03"`+`quantity>0`+`price=0`+`orderAmount=0`. US는 `currencyMode="USD"`, KR은 `currencyMode="KRW"`. 캡처 검증: AEE prepare 2026-05-04 (`docs/trading/rpc-catalog.md`).
+- **시장가 reconcile에서 가격 매칭 스킵** — `findMatchingPendingOrder/Completed`가 `expectedPriceKRW<=0`을 sentinel로 해석해 symbol+quantity 로만 매칭. 시장가는 `intent.Price=0`을 그대로 reconcile에 흘리므로 strict equalFloat 매칭에서 영영 어긋나 `ErrPlaceNotReconciled` → 사용자 재시도 → 더블 fill 위험을 차단. limit/amend는 양수 가격을 넘기므로 기존 strict 동작 유지.
+- **시장가 슬리피지 경고** — `PreviewPlace.Warnings`에 시장가 주문은 호가에 체결되어 갭/슬리피지 위험이 있다는 안내 추가. fractional/whole-share 모두 적용.
+- **`docs/trading/rpc-catalog.md`** — 캡처된 US 시장가 prepare body/response 추가. 기존 limit-only 카탈로그와의 차이(`orderPriceType`, `currencyMode`, `price=0`) 분석 정리.
+
+### Changed
+- `NormalizePlace`가 `--type market`에 `--price` 또는 `--amount`(non-fractional)를 동시 입력하면 거절 — 이전엔 `intent.Price=0` 으로 조용히 덮어써 사용자가 의도한 가격이 사라지는 경로였음.
+
+### Notes
+- KR 시장가는 정규장 시간(09:00–15:30 KST)에만 UI에서 enabled — 캡처는 정규장 시간에 추가 진행 예정. 코드 경로는 `orderPriceType="03"` 동일 가정 (KR 브로커 표준), `currencyMode="KRW"`.
+
 ## [0.4.5] - 2026-04-29
 
 ### Added

@@ -309,6 +309,72 @@ Additional observations from the same place:
 - `extra.closeKrw` matched the captured exchange rate and USD close:
   - `14.4 * 1472.8 ≈ 21208`
 
+### Captured Place Request Bodies — US Whole-Share Market Order (2026-05-04)
+
+User-driven action:
+
+- US stock `AEE` (Ameren) detail page → 시장가 (market) tab → 수량 1주 → `구매하기`
+- 확인 다이얼로그에서 취소 (no `create` issued)
+- 시각: 2026-05-04 KST 21:11 (US pre-market hours)
+
+`order/prepare` body:
+
+```json
+{
+  "stockCode": "US19980102001",
+  "market": "NYS",
+  "currencyMode": "USD",
+  "tradeType": "buy",
+  "price": 0,
+  "quantity": 1,
+  "orderAmount": 0,
+  "orderPriceType": "03",
+  "agreedOver100Million": false,
+  "marginTrading": false,
+  "max": false,
+  "allowAutoExchange": true,
+  "isReservationOrder": false,
+  "openPriceSinglePriceYn": false,
+  "withOrderKey": true
+}
+```
+
+`order/prepare` response (status 200):
+
+```json
+{
+  "result": {
+    "preparedOrderInfo": {
+      "tradeType": "buy",
+      "price": 113.56,
+      "commission": 0.11,
+      "tradeAmount": 113.67,
+      "displayPrice": "$113.56",
+      "displayCommission": "$0.11",
+      "displayTradeAmount": "$113.67",
+      "quantity": 1,
+      "displayQuantity": "1주",
+      "orderPriceType": "03",
+      "reservedOrder": false,
+      "needExchange": 0,
+      ...
+    },
+    "buyingRedFlags": [],
+    "authRequired": { "required": false, "simpleTrade": true, "verifier": null },
+    "orderKey": "trade::session::***"
+  }
+}
+```
+
+Differences vs limit-order capture above:
+
+- `orderPriceType: "03"` — Toss-side standard 시장가 code (KR-broker convention). Distinct from fractional `"01"`.
+- `currencyMode: "USD"` — for whole-share market on US stocks, the wire flags the stock-side currency. Limit/fractional captures use `"KRW"` regardless of stock market.
+- `price: 0` — the price field is unused; server fills at quote.
+- response echoes `orderPriceType: "03"` and includes the live quote (`price: 113.56`) used to render the confirmation dialog.
+
+KR-side whole-share market wire is **not yet captured** (KR market 시장가 is gated to 정규장 09:00–15:30 KST and 라디오가 disabled 상태). Code paths assume the same `orderPriceType: "03"` per KR-broker convention but `currencyMode` stays `"KRW"`.
+
 ### Pending Order And Bulk Cancel Path
 
 User-driven action:

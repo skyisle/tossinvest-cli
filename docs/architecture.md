@@ -253,7 +253,7 @@ sequenceDiagram
 
 - `amend`의 추가 live 검증
 - `place`와 `amend`의 상태 판별 추가 검증
-- 비소수점 시장가 주문 (US/KR)
+- 비소수점 시장가 주문 — US 캡처 검증 완료 (AEE 2026-05-04, `orderPriceType="03"` + `currencyMode="USD"`). KR은 정규장 시간 외라 UI에서 시장가 라디오가 disabled — 정규장 시간에 캡처해서 wire 일치 여부 검증 필요
 - interactive auth challenge가 필요한 mutation 분기 일반화
 
 ## Related Docs
