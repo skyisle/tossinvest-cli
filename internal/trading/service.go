@@ -49,7 +49,7 @@ func NewService(permissionService *permissions.Service, policy config.Trading, b
 func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	canonical := orderintent.CanonicalPlace(intent)
 	warnings := []string{
-		"Live place supports US/KR buy/sell limit orders (US accepts KRW or USD price input) and US fractional (market) orders.",
+		"Live place supports US/KR buy/sell limit orders (US accepts KRW or USD price input), US/KR whole-share market orders (qty-based), and US fractional (amount-based market) orders.",
 		"US orders may still require funding, FX consent, or product-risk acknowledgement before submission.",
 	}
 	liveReady := placeIntentSupported(intent)
@@ -64,6 +64,9 @@ func (s *Service) PreviewPlace(intent orderintent.PlaceIntent) Preview {
 	}
 	if intent.Fractional && !s.policy.Fractional {
 		warnings = append(warnings, "Config currently disables `order place --fractional`.")
+	}
+	if intent.OrderType == "market" {
+		warnings = append(warnings, "Market order: fills at the prevailing quote with no price cap. Slippage and after-hours gaps may result in fills far from the last close — verify liquidity and consider a limit order for thinly-traded names.")
 	}
 	if !s.policy.AllowLiveOrderActions {
 		warnings = append(warnings, "Config currently disables live order actions.")
@@ -242,10 +245,14 @@ func placeIntentSupported(intent orderintent.PlaceIntent) bool {
 		return intent.Market == "us" && intent.OrderType == "market" &&
 			(intent.CurrencyMode == "KRW" || intent.CurrencyMode == "USD")
 	}
-	// non-fractional: limit only. KR requires KRW. US accepts KRW
-	// (converted to USD via exchange rate at request time) or USD
-	// (sent to server as-is in the price field — see buildPlaceBody).
-	if intent.OrderType != "limit" {
+	// non-fractional: limit or whole-share market. KR requires KRW. US accepts
+	// KRW (converted to USD via exchange rate at request time) or USD (sent
+	// to server as-is in the price field — see buildPlaceBody). Whole-share
+	// market orders carry quantity with orderPriceType="01" on the wire.
+	if intent.OrderType != "limit" && intent.OrderType != "market" {
+		return false
+	}
+	if intent.OrderType == "market" && intent.Quantity <= 0 {
 		return false
 	}
 	if intent.Market == "kr" {

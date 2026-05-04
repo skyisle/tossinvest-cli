@@ -106,6 +106,12 @@ func NormalizePlace(input PlaceInput) (PlaceIntent, error) {
 			return PlaceIntent{}, fmt.Errorf("price must be greater than zero for limit orders")
 		}
 		if intent.OrderType == "market" {
+			if input.Price > 0 {
+				return PlaceIntent{}, fmt.Errorf("price must not be set for market orders; market orders fill at the prevailing quote")
+			}
+			if input.Amount > 0 {
+				return PlaceIntent{}, fmt.Errorf("amount is only valid for --fractional orders; whole-share market orders use --qty")
+			}
 			intent.Price = 0
 		}
 	}

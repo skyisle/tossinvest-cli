@@ -823,6 +823,15 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 		quantityValue = 0
 		orderAmount = math.Round(intent.Amount)
 		orderPriceType = "01" // market
+	case intent.OrderType == "market":
+		// Whole-share market order (non-fractional). Wire carries quantity
+		// with orderPriceType="03"; price stays 0 — server fills at market.
+		// "03" is the standard KR-broker code for 시장가 (Toss uses "01"
+		// only for fractional). Verified against captured AEE prepare body
+		// in docs/trading/rpc-catalog.md (US/NYS, 2026-05-04).
+		priceValue = 0
+		quantityValue = intent.Quantity
+		orderPriceType = "03"
 	case intent.Market == "kr":
 		priceValue = intent.Price
 		quantityValue = intent.Quantity
@@ -836,13 +845,20 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 		quantityValue = intent.Quantity
 	}
 
-	// Toss wire payload always uses currencyMode="KRW" even for US orders;
-	// the price field carries USD in that case. Matches every captured
-	// order/prepare body in docs/trading/rpc-catalog.md.
+	// Toss wire payload uses currencyMode="KRW" for limit/fractional orders
+	// (price field carries USD value for US limit; matches every captured
+	// limit/fractional body in docs/trading/rpc-catalog.md). For US
+	// whole-share market orders, the captured wire shows currencyMode="USD"
+	// (AEE prepare 2026-05-04) — price=0 carries no currency, so the wire
+	// flags the stock-side currency instead.
+	wireCurrencyMode := "KRW"
+	if !intent.Fractional && intent.OrderType == "market" && intent.Market == "us" {
+		wireCurrencyMode = "USD"
+	}
 	payload := map[string]any{
 		"stockCode":              productCode,
 		"market":                 marketCode,
-		"currencyMode":           "KRW",
+		"currencyMode":           wireCurrencyMode,
 		"tradeType":              intent.Side,
 		"price":                  priceValue,
 		"quantity":               quantityValue,
@@ -1055,6 +1071,19 @@ func (c *Client) reconcileCanceledOrder(ctx context.Context, originalOrderID, pr
 	return tradingflow.MutationResult{}, tradingflow.ErrCancelStillPending
 }
 
+// orderPriceMatchesExpected returns true when the order's price matches the
+// caller's expectation. When expectedPriceKRW <= 0, the caller has no fixed
+// price expectation (e.g. market orders fill at the prevailing quote and
+// place the request with price=0), so the price check is skipped and matching
+// falls back to symbol + quantity. Limit and amend flows always pass
+// expectedPriceKRW > 0, preserving the original strict equality there.
+func orderPriceMatchesExpected(orderPriceKRW, expectedPriceKRW float64) bool {
+	if expectedPriceKRW <= 0 {
+		return true
+	}
+	return equalFloat(orderPriceKRW, expectedPriceKRW)
+}
+
 func (c *Client) findMatchingPendingOrder(ctx context.Context, productCode, symbol string, expectedPriceKRW, expectedQty float64, excludeID string) (*domain.Order, error) {
 	orders, err := c.ListPendingOrders(ctx)
 	if err != nil {
@@ -1067,7 +1096,7 @@ func (c *Client) findMatchingPendingOrder(ctx context.Context, productCode, symb
 		if !matchesOrderSymbol(order, productCode, symbol) {
 			continue
 		}
-		if equalFloat(order.Price, expectedPriceKRW) && equalFloat(order.Quantity, expectedQty) {
+		if orderPriceMatchesExpected(order.Price, expectedPriceKRW) && equalFloat(order.Quantity, expectedQty) {
 			orderCopy := order
 			return &orderCopy, nil
 		}
@@ -1099,7 +1128,7 @@ func (c *Client) findMatchingCompletedOrder(ctx context.Context, market, product
 		if predicate != nil && !predicate(order) {
 			continue
 		}
-		if equalFloat(order.Price, expectedPriceKRW) && (equalFloat(order.Quantity, expectedQty) || equalFloat(order.FilledQuantity, expectedQty)) {
+		if orderPriceMatchesExpected(order.Price, expectedPriceKRW) && (equalFloat(order.Quantity, expectedQty) || equalFloat(order.FilledQuantity, expectedQty)) {
 			orderCopy := order
 			return &orderCopy, nil
 		}
