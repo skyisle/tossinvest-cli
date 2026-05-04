@@ -106,6 +106,36 @@ func TestNormalizePlaceFractionalRequiresAmount(t *testing.T) {
 	}
 }
 
+func TestNormalizePlaceMarketRejectsPriceInput(t *testing.T) {
+	_, err := NormalizePlace(PlaceInput{Symbol: "AAPL", Side: "buy", OrderType: "market", Quantity: 1, Price: 100})
+	if err == nil {
+		t.Fatal("expected error for market order with price input")
+	}
+}
+
+func TestNormalizePlaceMarketRejectsAmountInput(t *testing.T) {
+	_, err := NormalizePlace(PlaceInput{Symbol: "AAPL", Side: "buy", OrderType: "market", Quantity: 1, Amount: 50000})
+	if err == nil {
+		t.Fatal("expected error for non-fractional market order with amount input")
+	}
+}
+
+func TestNormalizePlaceMarketKRWholeShare(t *testing.T) {
+	intent, err := NormalizePlace(PlaceInput{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 1})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+	if intent.OrderType != "market" {
+		t.Fatalf("expected market, got %q", intent.OrderType)
+	}
+	if intent.Price != 0 {
+		t.Fatalf("expected price 0, got %v", intent.Price)
+	}
+	if intent.CurrencyMode != "KRW" {
+		t.Fatalf("expected currency_mode KRW (default), got %q", intent.CurrencyMode)
+	}
+}
+
 func TestInferMarketFromStockCode(t *testing.T) {
 	cases := []struct {
 		code   string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -447,6 +448,105 @@ func TestPlaceIntentSupportedRejectsFractionalKR(t *testing.T) {
 	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Amount: 8000, CurrencyMode: "KRW", Fractional: true}
 	if placeIntentSupported(intent) {
 		t.Fatal("expected false for KR fractional order")
+	}
+}
+
+func TestPlaceIntentSupportedAcceptsUSMarketQty(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "AAPL", Market: "us", Side: "buy", OrderType: "market", Quantity: 1, CurrencyMode: "KRW"}
+	if !placeIntentSupported(intent) {
+		t.Fatal("expected true for US whole-share market order")
+	}
+}
+
+func TestPlaceIntentSupportedAcceptsKRMarketQty(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 10, CurrencyMode: "KRW"}
+	if !placeIntentSupported(intent) {
+		t.Fatal("expected true for KR whole-share market order")
+	}
+}
+
+func TestPlaceIntentSupportedRejectsKRMarketUSD(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 10, CurrencyMode: "USD"}
+	if placeIntentSupported(intent) {
+		t.Fatal("expected false for KR market order with USD currency mode")
+	}
+}
+
+func TestPlaceIntentSupportedRejectsMarketWithoutQty(t *testing.T) {
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 0, CurrencyMode: "KRW"}
+	if placeIntentSupported(intent) {
+		t.Fatal("expected false for non-fractional market order without quantity")
+	}
+}
+
+func TestPreviewPlaceKRMarketQtyMutationReady(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	svc := NewService(ps, config.Trading{Place: true, KR: true, Sell: true, AllowLiveOrderActions: true}, nil)
+	intent := orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 1, CurrencyMode: "KRW"}
+	preview := svc.PreviewPlace(intent)
+	if !preview.LiveReady {
+		t.Fatal("expected LiveReady true for KR market+qty")
+	}
+	if !preview.MutationReady {
+		t.Fatal("expected MutationReady true under place+kr+allow_live config")
+	}
+}
+
+func TestPreviewPlaceUSMarketQtyMutationReady(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	svc := NewService(ps, config.Trading{Place: true, KR: true, Sell: true, AllowLiveOrderActions: true}, nil)
+	intent := orderintent.PlaceIntent{Symbol: "AAPL", Market: "us", Side: "buy", OrderType: "market", Quantity: 1, CurrencyMode: "KRW"}
+	preview := svc.PreviewPlace(intent)
+	if !preview.LiveReady {
+		t.Fatal("expected LiveReady true for US market+qty")
+	}
+	if !preview.MutationReady {
+		t.Fatal("expected MutationReady true under place+us+allow_live config")
+	}
+}
+
+func TestPreviewPlaceMarketOrderShowsSlippageWarning(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	svc := NewService(ps, config.Trading{Place: true, KR: true, Sell: true, AllowLiveOrderActions: true}, nil)
+
+	cases := []struct {
+		name   string
+		intent orderintent.PlaceIntent
+	}{
+		{"KR whole-share market", orderintent.PlaceIntent{Symbol: "290080", Market: "kr", Side: "buy", OrderType: "market", Quantity: 1, CurrencyMode: "KRW"}},
+		{"US whole-share market", orderintent.PlaceIntent{Symbol: "AAPL", Market: "us", Side: "buy", OrderType: "market", Quantity: 1, CurrencyMode: "KRW"}},
+		{"US fractional market", orderintent.PlaceIntent{Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market", Amount: 18000, CurrencyMode: "KRW", Fractional: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			preview := svc.PreviewPlace(tc.intent)
+			found := false
+			for _, w := range preview.Warnings {
+				if strings.Contains(w, "Slippage") || strings.Contains(w, "slippage") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected slippage warning in preview for %s; got %v", tc.name, preview.Warnings)
+			}
+		})
+	}
+}
+
+func TestPreviewPlaceLimitOrderHasNoSlippageWarning(t *testing.T) {
+	dir := t.TempDir()
+	ps := permissions.NewService(filepath.Join(dir, "p.json"))
+	svc := NewService(ps, config.Trading{Place: true, KR: true, AllowLiveOrderActions: true}, nil)
+	intent := orderintent.PlaceIntent{Symbol: "AAPL", Market: "us", Side: "buy", OrderType: "limit", Quantity: 1, Price: 200, CurrencyMode: "KRW"}
+	preview := svc.PreviewPlace(intent)
+	for _, w := range preview.Warnings {
+		if strings.Contains(w, "Slippage") || strings.Contains(w, "slippage") {
+			t.Fatalf("limit order should not produce slippage warning; got %q", w)
+		}
 	}
 }
 

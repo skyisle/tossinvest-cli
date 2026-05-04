@@ -544,6 +544,127 @@ func TestBuildPlaceBodyFractionalMarketOrder(t *testing.T) {
 	}
 }
 
+func TestBuildPlaceBodyKRMarketOrder(t *testing.T) {
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "290080",
+		Market:       "kr",
+		Side:         "buy",
+		OrderType:    "market",
+		Quantity:     1,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	meta := stockPriceMetadata{Close: 8355, CloseKRW: 8355, ExchangeRate: 1}
+	body, err := buildPlaceBody("A290080", "KSP", intent, meta, true)
+	if err != nil {
+		t.Fatalf("buildPlaceBody returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload["orderPriceType"] != "03" {
+		t.Fatalf("expected orderPriceType 03 (KR 시장가 convention; KR capture pending), got %v", payload["orderPriceType"])
+	}
+	if payload["currencyMode"] != "KRW" {
+		t.Fatalf("expected wire currencyMode KRW for KR market, got %v", payload["currencyMode"])
+	}
+	if payload["price"] != float64(0) {
+		t.Fatalf("expected price 0, got %v", payload["price"])
+	}
+	if payload["quantity"] != float64(1) {
+		t.Fatalf("expected quantity 1, got %v", payload["quantity"])
+	}
+	if payload["orderAmount"] != float64(0) {
+		t.Fatalf("expected orderAmount 0, got %v", payload["orderAmount"])
+	}
+	if _, ok := payload["isFractionalOrder"]; ok {
+		t.Fatal("KR market order must not include isFractionalOrder")
+	}
+	if _, ok := payload["allowAutoExchange"]; ok {
+		t.Fatal("KR market order must not include allowAutoExchange")
+	}
+	if payload["market"] != "KSP" {
+		t.Fatalf("expected market KSP, got %v", payload["market"])
+	}
+}
+
+func TestBuildPlaceBodyUSMarketOrder(t *testing.T) {
+	intent, err := orderintent.NormalizePlace(orderintent.PlaceInput{
+		Symbol:       "TSLL",
+		Market:       "us",
+		Side:         "buy",
+		OrderType:    "market",
+		Quantity:     2,
+		CurrencyMode: "KRW",
+	})
+	if err != nil {
+		t.Fatalf("NormalizePlace returned error: %v", err)
+	}
+
+	meta := stockPriceMetadata{Close: 14.4, CloseKRW: 21208, ExchangeRate: 1472.8}
+	body, err := buildPlaceBody("US20220809012", "NSQ", intent, meta, true)
+	if err != nil {
+		t.Fatalf("buildPlaceBody returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// Verified against captured AEE prepare body (US/NYS, 2026-05-04).
+	// See docs/trading/rpc-catalog.md for the captured wire shape.
+	if payload["orderPriceType"] != "03" {
+		t.Fatalf("expected orderPriceType 03 (US 시장가, captured), got %v", payload["orderPriceType"])
+	}
+	if payload["currencyMode"] != "USD" {
+		t.Fatalf("expected wire currencyMode USD for US whole-share market (captured), got %v", payload["currencyMode"])
+	}
+	if payload["price"] != float64(0) {
+		t.Fatalf("expected price 0, got %v", payload["price"])
+	}
+	if payload["quantity"] != float64(2) {
+		t.Fatalf("expected quantity 2, got %v", payload["quantity"])
+	}
+	if payload["orderAmount"] != float64(0) {
+		t.Fatalf("expected orderAmount 0, got %v", payload["orderAmount"])
+	}
+	if _, ok := payload["isFractionalOrder"]; ok {
+		t.Fatal("non-fractional market order must not include isFractionalOrder")
+	}
+	if payload["allowAutoExchange"] != true {
+		t.Fatal("US market order must include allowAutoExchange=true")
+	}
+}
+
+func TestOrderPriceMatchesExpected(t *testing.T) {
+	cases := []struct {
+		name             string
+		orderPriceKRW    float64
+		expectedPriceKRW float64
+		want             bool
+	}{
+		{"limit exact match", 8000, 8000, true},
+		{"limit mismatch", 8000, 7000, false},
+		{"market: zero expected, non-zero filled price → match", 65000, 0, true},
+		{"market: zero expected, zero order price → match", 0, 0, true},
+		{"market: negative expected treated as skip", 100, -1, true},
+		{"limit: zero order price never matches non-zero expected", 0, 8000, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := orderPriceMatchesExpected(tc.orderPriceKRW, tc.expectedPriceKRW)
+			if got != tc.want {
+				t.Fatalf("orderPriceMatchesExpected(%v, %v) = %v, want %v", tc.orderPriceKRW, tc.expectedPriceKRW, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPlacePendingOrderSendsXOrderKeyOnCreate(t *testing.T) {
 	t.Parallel()
 
