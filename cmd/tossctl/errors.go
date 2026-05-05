@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/config"
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 	"github.com/junghoonkye/tossinvest-cli/internal/trading"
 )
 
@@ -18,12 +21,26 @@ func userFacingCommandError(err error) error {
 		return nil
 	}
 
-	if errors.Is(err, tossclient.ErrNoSession) {
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("canceled")
+	}
+
+	if errors.Is(err, session.ErrNoSession) || errors.Is(err, tossclient.ErrNoSession) {
 		return fmt.Errorf("no active session; run `tossctl auth login`")
 	}
 
 	if tossclient.IsAuthError(err) {
-		return fmt.Errorf("stored session is no longer valid; run `tossctl auth login`")
+		return fmt.Errorf("stored session is no longer valid; run `tossctl auth extend` to renew, or `tossctl auth login` to re-authenticate")
+	}
+	if errors.Is(err, auth.ErrExtensionTimeout) {
+		// Surface the elapsed-time detail that Service.Extend wrapped into the error.
+		return fmt.Errorf("phone approval did not complete (%s); rerun `tossctl auth extend` to retry", extractParenDetail(err))
+	}
+	if errors.Is(err, auth.ErrExtensionRejected) {
+		return fmt.Errorf("phone approval was denied or canceled; rerun `tossctl auth extend` to retry")
+	}
+	if errors.Is(err, auth.ErrExtensionNotConfigured) {
+		return fmt.Errorf("internal error: ExtensionRunner is not configured")
 	}
 	if errors.Is(err, permissions.ErrNoGrant) || errors.Is(err, permissions.ErrExpiredGrant) {
 		return fmt.Errorf("no active trading permission grant; run `tossctl order permissions grant --ttl 300`")
@@ -202,6 +219,19 @@ func buildPlaceCommand(kind string, flags *placeFlags, confirm string) string {
 		args = append(args, "--execute", "--dangerously-skip-permissions", "--confirm", confirm)
 	}
 	return strings.Join(args, " ")
+}
+
+// extractParenDetail returns the parenthetical detail wrapped into a sentinel
+// error by Service.Extend (e.g. "(대기 120s)"). Returns "시간 초과" if no
+// detail is found, so the user-facing message is always a complete sentence.
+func extractParenDetail(err error) string {
+	msg := err.Error()
+	if i := strings.LastIndex(msg, "("); i != -1 {
+		if j := strings.LastIndex(msg, ")"); j > i {
+			return msg[i+1 : j]
+		}
+	}
+	return "시간 초과"
 }
 
 func formatCommandFloat(value float64) string {
