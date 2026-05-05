@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/session"
 )
 
@@ -20,17 +21,21 @@ type LoginConfig struct {
 }
 
 type Options struct {
-	LoginConfig LoginConfig
-	Runner      LoginRunner
-	Validator   SessionValidator
+	LoginConfig     LoginConfig
+	Runner          LoginRunner
+	Validator       SessionValidator
+	ExtensionRunner ExtensionRunner
+	PollInterval    time.Duration // defaults to 1s when zero
 }
 
 type Service struct {
-	store       session.Store
-	sessionFile string
-	loginConfig LoginConfig
-	runner      LoginRunner
-	validator   SessionValidator
+	store           session.Store
+	sessionFile     string
+	loginConfig     LoginConfig
+	runner          LoginRunner
+	validator       SessionValidator
+	extensionRunner ExtensionRunner
+	pollInterval    time.Duration
 }
 
 type Status struct {
@@ -41,6 +46,7 @@ type Status struct {
 	StorageKeys     int        `json:"storage_keys,omitempty"`
 	RetrievedAt     *time.Time `json:"retrieved_at,omitempty"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	ServerExpiresAt *time.Time `json:"server_expires_at,omitempty"`
 	SessionFile     string     `json:"session_file"`
 	Validated       bool       `json:"validated"`
 	Valid           bool       `json:"valid"`
@@ -50,6 +56,14 @@ type Status struct {
 
 type SessionValidator interface {
 	ValidateSession(context.Context) error
+	GetServerExpiredAt(context.Context) (time.Time, error)
+}
+
+type ExtensionRunner interface {
+	RequestExtension(context.Context) (string, error)
+	GetExtensionStatus(context.Context, string) (client.ExtensionStatus, error)
+	FinalizeExtension(context.Context, string) error
+	GetServerExpiredAt(context.Context) (time.Time, error)
 }
 
 func DefaultLoginConfig(cacheDir string) LoginConfig {
@@ -157,12 +171,19 @@ func NewService(store session.Store, sessionFile string, opts Options) *Service 
 		runner = PythonLoginRunner{}
 	}
 
+	pollInterval := opts.PollInterval
+	if pollInterval <= 0 {
+		pollInterval = time.Second
+	}
+
 	return &Service{
-		store:       store,
-		sessionFile: sessionFile,
-		loginConfig: opts.LoginConfig,
-		runner:      runner,
-		validator:   opts.Validator,
+		store:           store,
+		sessionFile:     sessionFile,
+		loginConfig:     opts.LoginConfig,
+		runner:          runner,
+		validator:       opts.Validator,
+		extensionRunner: opts.ExtensionRunner,
+		pollInterval:    pollInterval,
 	}
 }
 
@@ -207,14 +228,15 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	}
 
 	status := Status{
-		Active:      true,
-		Expired:     sess.IsExpired(time.Now()),
-		Provider:    sess.Provider,
-		CookieCount: len(sess.Cookies),
-		StorageKeys: len(sess.Storage),
-		RetrievedAt: &sess.RetrievedAt,
-		ExpiresAt:   sess.ExpiresAt,
-		SessionFile: s.sessionFile,
+		Active:          true,
+		Expired:         sess.IsExpired(time.Now()),
+		Provider:        sess.Provider,
+		CookieCount:     len(sess.Cookies),
+		StorageKeys:     len(sess.Storage),
+		RetrievedAt:     &sess.RetrievedAt,
+		ExpiresAt:       sess.ExpiresAt,
+		ServerExpiresAt: sess.ServerExpiresAt,
+		SessionFile:     s.sessionFile,
 	}
 
 	if s.validator != nil {
@@ -227,6 +249,12 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 			return status, nil
 		}
 		status.Valid = true
+
+		if expiredAt, err := s.validator.GetServerExpiredAt(ctx); err == nil {
+			status.ServerExpiresAt = &expiredAt
+			sess.ServerExpiresAt = &expiredAt
+			_ = s.store.Save(ctx, sess) // best-effort persist; non-fatal on save error
+		}
 	}
 
 	return status, nil
