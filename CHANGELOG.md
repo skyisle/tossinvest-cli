@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6] - Unreleased
+
+### Added
+- **`tossctl auth extend`** — 폰 토스 앱 푸시 승인을 통해 세션 만료를 연장합니다. 블로킹 + 스피너 UX, `--timeout` (기본 120초). 사용 endpoint: `POST /api/v1/wts-login-extend/doc/request` → polling `GET /doc/{txId}/status` (`REQUESTED` → `COMPLETED`) → `POST /api/v1/wts-login-extend/{txId}/state` (필수 finalize) → `GET /api/v1/session/expired-at`. 약 7일 연장됩니다.
+- **24h 만료 경고** — 모든 명령 시작 시 서버 측 세션 만료가 24시간 미만으로 남았으면 stderr 한 줄로 경고 (`⚠ 세션이 약 ... 뒤 만료됩니다. tossctl auth extend 로 연장하세요.`). `--output json` 모드에서는 표시되지 않음.
+- **`session.json` 에 `server_expires_at` 필드 추가** — 서버 측 ~7일 만료 시계 (기존 `expires_at` 의 1년 쿠키 만료와 별개).
+
+### Changed
+- **`userFacingCommandError` 정비** — `tossctl auth extend` 도 다른 명령처럼 이 헬퍼를 거치도록 통일하고 다음 분기 추가/정리 (기존 운영 에러 톤에 맞춰 영어):
+  - 401 (`*tossclient.AuthError`) → "stored session is no longer valid; run `tossctl auth extend` to renew, or `tossctl auth login` to re-authenticate"
+  - `auth.ErrExtensionTimeout` → "phone approval did not complete (waited Ns); rerun `tossctl auth extend` to retry"
+  - `auth.ErrExtensionRejected` → "phone approval was denied or canceled; rerun `tossctl auth extend` to retry"
+  - `context.Canceled` (Ctrl+C) → "canceled"
+  - `session.ErrNoSession` 과 `tossclient.ErrNoSession` 은 한 분기로 합쳐 "no active session; run `tossctl auth login`" 안내
+
 ## [0.4.5] - 2026-04-29
 
 ### Added
