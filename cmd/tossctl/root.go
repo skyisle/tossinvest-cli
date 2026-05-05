@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
@@ -46,8 +49,14 @@ func newRootCmd() *cobra.Command {
 			"web client with browser-assisted login and a narrow trading beta surface.",
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := output.ParseFormat(opts.outputFormat)
-			return err
+			format, err := output.ParseFormat(opts.outputFormat)
+			if err != nil {
+				return err
+			}
+			store := session.NewFileStore(resolveSessionFile(opts))
+			sess, _ := store.Load(cmd.Context())
+			writeExpiryWarningIfNeeded(cmd.ErrOrStderr(), sess, deepestCommandName(cmd), format, time.Now())
+			return nil
 		},
 	}
 
@@ -87,6 +96,76 @@ func newRootCmd() *cobra.Command {
 	)
 
 	return cmd
+}
+
+// resolveSessionFile mirrors the resolution done in newAppContext but without
+// requiring the full app context — PersistentPreRunE runs before subcommands
+// have built theirs.
+func resolveSessionFile(opts *rootOptions) string {
+	if opts.sessionFile != "" {
+		return opts.sessionFile
+	}
+	if opts.configDir != "" {
+		return filepath.Join(opts.configDir, "session.json")
+	}
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return ""
+	}
+	return paths.SessionFile
+}
+
+func deepestCommandName(cmd *cobra.Command) string {
+	if cmd == nil {
+		return ""
+	}
+	return cmd.Name()
+}
+
+var expiryWarningSkipCommands = map[string]struct{}{
+	"extend":                  {},
+	"login":                   {},
+	"logout":                  {},
+	"status":                  {},
+	"import-playwright-state": {},
+	"version":                 {},
+	"help":                    {},
+}
+
+func writeExpiryWarningIfNeeded(w io.Writer, sess *session.Session, cmdName string, format output.Format, now time.Time) {
+	if sess == nil || sess.ServerExpiresAt == nil {
+		return
+	}
+	if format == output.FormatJSON {
+		return
+	}
+	if _, skip := expiryWarningSkipCommands[cmdName]; skip {
+		return
+	}
+	remaining := sess.ServerExpiresAt.Sub(now)
+	if remaining <= 0 || remaining >= 24*time.Hour {
+		return
+	}
+	fmt.Fprintf(w, "⚠ session expires in ~%s; run `tossctl auth extend` to renew\n", humanizeDuration(remaining))
+}
+
+func humanizeDuration(d time.Duration) string {
+	if d <= 0 {
+		return "0s"
+	}
+	hours := int(d.Hours())
+	if hours >= 1 {
+		minutes := int(d.Minutes()) % 60
+		if minutes == 0 {
+			return fmt.Sprintf("%dh", hours)
+		}
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+	minutes := int(d.Minutes())
+	if minutes >= 1 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
 func newAppContext(opts *rootOptions) (*appContext, error) {
@@ -137,8 +216,9 @@ func newAppContext(opts *rootOptions) (*appContext, error) {
 		configService: configService,
 		loginConfig:   loginConfig,
 		authService: auth.NewService(store, paths.SessionFile, auth.Options{
-			LoginConfig: loginConfig,
-			Validator:   client,
+			LoginConfig:     loginConfig,
+			Validator:       client,
+			ExtensionRunner: client,
 		}),
 		client:            client,
 		session:           sess,
