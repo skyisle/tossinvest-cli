@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/junghoonkye/tossinvest-cli/internal/auth"
+	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
 	"github.com/junghoonkye/tossinvest-cli/internal/config"
+	"github.com/junghoonkye/tossinvest-cli/internal/session"
 	"github.com/junghoonkye/tossinvest-cli/internal/trading"
 )
 
@@ -119,4 +124,63 @@ func TestUserFacingPlaceErrorFormatsPostPrepareFXGuidance(t *testing.T) {
 
 func rootPathsForTest() config.Paths {
 	return config.Paths{}
+}
+
+func TestUserFacingCommandErrorAuthErrorMentionsExtend(t *testing.T) {
+	t.Parallel()
+
+	authErr := &tossclient.AuthError{StatusCode: 401, Endpoint: "/api/v1/account/list"}
+	got := userFacingCommandError(authErr).Error()
+	if !strings.Contains(got, "tossctl auth extend") {
+		t.Fatalf("expected auth extend hint, got %q", got)
+	}
+	if !strings.Contains(got, "tossctl auth login") {
+		t.Fatalf("expected auth login hint, got %q", got)
+	}
+}
+
+func TestUserFacingCommandErrorExtensionTimeout(t *testing.T) {
+	t.Parallel()
+
+	wrapped := fmt.Errorf("%w (waited 120s)", auth.ErrExtensionTimeout)
+	got := userFacingCommandError(wrapped).Error()
+	if !strings.Contains(got, "waited 120s") {
+		t.Fatalf("expected timeout detail, got %q", got)
+	}
+	if !strings.Contains(got, "rerun") {
+		t.Fatalf("expected retry hint, got %q", got)
+	}
+	if !strings.Contains(got, "tossctl auth extend") {
+		t.Fatalf("expected extend command hint, got %q", got)
+	}
+}
+
+func TestUserFacingCommandErrorContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	got := userFacingCommandError(context.Canceled).Error()
+	if !strings.Contains(got, "canceled") {
+		t.Fatalf("expected cancellation message, got %q", got)
+	}
+}
+
+func TestUserFacingCommandErrorExtensionRejected(t *testing.T) {
+	t.Parallel()
+
+	got := userFacingCommandError(auth.ErrExtensionRejected).Error()
+	if !strings.Contains(got, "denied") && !strings.Contains(got, "canceled") {
+		t.Fatalf("expected rejection wording, got %q", got)
+	}
+}
+
+func TestUserFacingCommandErrorSessionErrNoSessionMentionsLogin(t *testing.T) {
+	t.Parallel()
+
+	got := userFacingCommandError(session.ErrNoSession).Error()
+	if !strings.Contains(got, "tossctl auth login") {
+		t.Fatalf("expected login hint, got %q", got)
+	}
+	if !strings.Contains(got, "no stored session") {
+		t.Fatalf("expected friendly message, got %q", got)
+	}
 }
