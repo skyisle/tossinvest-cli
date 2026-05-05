@@ -12,12 +12,13 @@ import (
 var ErrNoSession = errors.New("no stored session")
 
 type Session struct {
-	Provider    string            `json:"provider"`
-	Cookies     map[string]string `json:"cookies,omitempty"`
-	Headers     map[string]string `json:"headers,omitempty"`
-	Storage     map[string]string `json:"storage,omitempty"`
-	RetrievedAt time.Time         `json:"retrieved_at"`
-	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`
+	Provider        string            `json:"provider"`
+	Cookies         map[string]string `json:"cookies,omitempty"`
+	Headers         map[string]string `json:"headers,omitempty"`
+	Storage         map[string]string `json:"storage,omitempty"`
+	RetrievedAt     time.Time         `json:"retrieved_at"`
+	ExpiresAt       *time.Time        `json:"expires_at,omitempty"`
+	ServerExpiresAt *time.Time        `json:"server_expires_at,omitempty"`
 }
 
 type Store interface {
