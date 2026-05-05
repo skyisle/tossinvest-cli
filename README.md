@@ -92,6 +92,24 @@ tossctl account summary --output json
 > **GUI 없는 환경 (SSH 서버·CI):** `tossctl auth login --headless [--qr-output /tmp/toss-qr.png]`.
 > QR URL 과 확인 문자(answerLetter)가 stderr 로 출력되며, URL 을 폰으로 전달해 탭하면 카메라 없이 Toss 앱에서 인증할 수 있습니다. `--qr-output` 파일은 `0600` 권한으로 저장됩니다.
 
+### 세션 연장
+
+토스 서버는 SESSION 쿠키(1년 `Max-Age`)와 별개로 약 7일짜리 활성 만료 시계를 운영합니다. 만료 24시간 전부터 모든 명령에 다음과 같은 stderr 경고가 표시됩니다.
+
+```
+⚠ session expires in ~18h; run `tossctl auth extend` to renew
+```
+
+`tossctl auth extend` 는 폰의 토스 앱에 푸시를 보내고 승인을 기다립니다.
+
+```
+$ tossctl auth extend
+Waiting for approval in the Toss app on your phone...
+✓ Extension complete. New expiry: 2026-05-13 07:03 KST (took 4s)
+```
+
+기본 timeout 은 120초이며 `--timeout 60s` 처럼 단축할 수 있습니다.
+
 ## 지원 범위
 
 ### 조회 (읽기 전용)
