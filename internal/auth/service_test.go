@@ -29,6 +29,10 @@ func (v fakeSessionValidator) ValidateSession(context.Context) error {
 	return v.err
 }
 
+func (v fakeSessionValidator) GetServerExpiredAt(context.Context) (time.Time, error) {
+	return time.Time{}, errors.New("not implemented in fake")
+}
+
 func TestLoginImportsHelperStorageState(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +172,58 @@ func TestStatusCapturesValidationError(t *testing.T) {
 	}
 	if status.ValidationError != "session rejected" {
 		t.Fatalf("unexpected validation error: %q", status.ValidationError)
+	}
+}
+
+type fakeServerExpiredAtValidator struct {
+	validateErr error
+	expiredAt   time.Time
+	expiredErr  error
+}
+
+func (v fakeServerExpiredAtValidator) ValidateSession(context.Context) error {
+	return v.validateErr
+}
+
+func (v fakeServerExpiredAtValidator) GetServerExpiredAt(context.Context) (time.Time, error) {
+	return v.expiredAt, v.expiredErr
+}
+
+func TestStatusRefreshesServerExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "session.json")
+	if err := session.NewFileStore(path).Save(context.Background(), &session.Session{
+		Provider:    "playwright-storage-state",
+		Cookies:     map[string]string{"SESSION": "s"},
+		RetrievedAt: mustTime(t, "2026-05-04T13:00:00Z"),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	want := mustTime(t, "2026-05-13T07:03:20+09:00")
+	svc := NewService(
+		session.NewFileStore(path),
+		path,
+		Options{Validator: fakeServerExpiredAtValidator{expiredAt: want}},
+	)
+
+	status, err := svc.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if status.ServerExpiresAt == nil || !status.ServerExpiresAt.Equal(want) {
+		t.Fatalf("ServerExpiresAt = %v, want %v", status.ServerExpiresAt, &want)
+	}
+
+	// And the value should be persisted back to disk.
+	stored, err := session.NewFileStore(path).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if stored.ServerExpiresAt == nil || !stored.ServerExpiresAt.Equal(want) {
+		t.Fatalf("disk ServerExpiresAt not persisted")
 	}
 }
 
