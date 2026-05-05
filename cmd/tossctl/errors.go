@@ -25,9 +25,6 @@ func userFacingCommandError(err error) error {
 		return fmt.Errorf("canceled")
 	}
 
-	// session.ErrNoSession (file missing) and tossclient.ErrNoSession (file
-	// present but cookies empty) are distinct sentinels from different layers,
-	// but the user-facing recovery is identical.
 	if errors.Is(err, session.ErrNoSession) || errors.Is(err, tossclient.ErrNoSession) {
 		return fmt.Errorf("no active session; run `tossctl auth login`")
 	}
