@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.7] - 2026-05-06
+
+### Fixed
+- **`order place --fractional --currency-mode USD` 거부 (#28)** — 와이어 페이로드는 항상 `currencyMode="KRW"`인데 (토스 스펙) Fractional 분기는 `intent.Amount`를 USD/KRW 구분 없이 그대로 `orderAmount`에 실어 보내고 있었음. 결과적으로 `--amount 100 --currency-mode USD`가 서버에 ₩100으로 전달되어 "금액주문은 $1 또는 1,000원 이상" 오류가 났음. 이제 USD 모드일 때는 `intent.Amount * meta.ExchangeRate`로 KRW 변환 후 송출. `--currency-mode KRW`(기본) 동작은 그대로. (제보: @leesj10147)
+
 ## [0.4.6] - 2026-05-06
 
 ### Added

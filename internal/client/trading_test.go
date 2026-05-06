@@ -544,6 +544,40 @@ func TestBuildPlaceBodyFractionalMarketOrder(t *testing.T) {
 	}
 }
 
+// Issue #28: fractional + USD currency-mode previously sent the raw USD value
+// in orderAmount with currencyMode="KRW", which the server interpreted as
+// a tiny KRW amount and rejected ("금액주문은 $1 또는 1,000원 이상").
+// USD inputs must be converted to KRW on the wire so the server accepts the
+// floor amount.
+func TestBuildPlaceBodyFractionalUSDConvertsToKRW(t *testing.T) {
+	intent := orderintent.PlaceIntent{
+		Symbol: "TSLL", Market: "us", Side: "buy", OrderType: "market",
+		Amount: 100, CurrencyMode: "USD", Fractional: true,
+	}
+	meta := stockPriceMetadata{Close: 12.12, CloseKRW: 17854, ExchangeRate: 1477.6}
+	body, err := buildPlaceBody("US20220809012", "NSQ", intent, meta, true)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// $100 * 1477.6 = 147760 KRW.
+	if payload["orderAmount"] != float64(147760) {
+		t.Fatalf("expected orderAmount 147760 (KRW from USD*rate), got %v", payload["orderAmount"])
+	}
+	if payload["currencyMode"] != "KRW" {
+		t.Fatalf("expected wire currencyMode KRW, got %v", payload["currencyMode"])
+	}
+	if payload["isFractionalOrder"] != true {
+		t.Fatal("expected isFractionalOrder true")
+	}
+	if payload["orderPriceType"] != "01" {
+		t.Fatalf("expected market order type 01, got %v", payload["orderPriceType"])
+	}
+}
+
 func TestPlacePendingOrderSendsXOrderKeyOnCreate(t *testing.T) {
 	t.Parallel()
 

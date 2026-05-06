@@ -818,10 +818,19 @@ func buildPlaceBody(productCode, marketCode string, intent orderintent.PlaceInte
 
 	switch {
 	case intent.Fractional:
-		// Fractional: market order, amount-based
+		// Fractional: market order, amount-based.
+		// Wire payload always carries currencyMode="KRW" (matches Toss web spec
+		// and the rest of buildPlaceBody), so a USD amount must be converted to
+		// KRW before it lands in the orderAmount field. Without this, server
+		// reads `orderAmount: 100` as ₩100 and rejects with "금액주문은 $1
+		// 또는 1,000원 이상" — see issue #28.
 		priceValue = 0
 		quantityValue = 0
-		orderAmount = math.Round(intent.Amount)
+		if intent.CurrencyMode == "USD" {
+			orderAmount = math.Round(intent.Amount * meta.ExchangeRate)
+		} else {
+			orderAmount = math.Round(intent.Amount)
+		}
 		orderPriceType = "01" // market
 	case intent.Market == "kr":
 		priceValue = intent.Price

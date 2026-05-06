@@ -135,12 +135,12 @@ Waiting for approval in the Toss app on your phone...
 | 지정가 매수 (US/KR) | `order place --side buy --price <value>` | `place` |
 | 지정가 매도 (US/KR) | `order place --side sell --price <value>` | `place` + `sell` |
 | 국내주식 거래 | `order place --market kr` | `place` + `kr` |
-| 소수점 매수 (US) | `order place --fractional --amount <KRW>` | `place` + `fractional` |
+| 소수점 매수 (US) | `order place --fractional --amount <value>` (기본 KRW; `--currency-mode USD`로 USD 금액 입력) | `place` + `fractional` |
 | 주문 취소 | `order cancel --order-id <id>` | `cancel` |
 | 주문 정정 | `order amend --order-id <id>` | `amend` |
 | 거래 권한 관리 | `order permissions grant\|status\|revoke` | `place`/`cancel`/`amend` 중 하나 |
 
-모든 거래는 `allow_live_order_actions=true`도 필요합니다. 소수점 주문은 시장가(market order)로 자동 전환되며, 금액(KRW) 기반입니다.
+모든 거래는 `allow_live_order_actions=true`도 필요합니다. 소수점 주문은 시장가(market order)로 자동 전환되며, 금액 기반입니다 (`--currency-mode KRW` 기본 또는 `USD`).
 
 US 지정가는 `--currency-mode`로 가격 해석을 선택합니다: `KRW` (기본, 서버 환율로 USD 변환) 또는 `USD` (입력을 USD 가격 그대로 전송). 예: `order place --symbol MRVL --side buy --qty 1 --price 158.01 --currency-mode USD`.
 
