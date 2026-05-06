@@ -203,7 +203,7 @@ func writeAuthStatus(w io.Writer, format output.Format, status auth.Status) erro
 			return err
 		}
 		if status.ServerExpiresAt != nil {
-			if _, err := fmt.Fprintf(w, "Server Expiry: %s\n", status.ServerExpiresAt.In(kstZone).Format("2006-01-02 15:04 MST")); err != nil {
+			if _, err := fmt.Fprintf(w, "Server Expiry: %s\n", formatKST(*status.ServerExpiresAt)); err != nil {
 				return err
 			}
 		}
@@ -303,11 +303,18 @@ func writeLogoutResult(w io.Writer, format output.Format, sessionFile string, cl
 // a named zone before formatting guarantees the human-readable label.
 var kstZone = time.FixedZone("KST", 9*3600)
 
+// formatKST renders a time as "2026-MM-DD HH:MM KST". Centralized so the
+// auth status / extend result outputs stay byte-identical and a future format
+// tweak is one edit.
+func formatKST(t time.Time) string {
+	return t.In(kstZone).Format("2006-01-02 15:04 MST")
+}
+
 func writeExtendResult(w io.Writer, result *auth.ExtendResult) error {
 	_, err := fmt.Fprintf(
 		w,
 		"✓ Extension complete. New expiry: %s (took %s)\n",
-		result.ServerExpiresAt.In(kstZone).Format("2006-01-02 15:04 MST"),
+		formatKST(result.ServerExpiresAt),
 		result.Elapsed.Round(time.Second),
 	)
 	return err

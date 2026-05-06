@@ -15,6 +15,19 @@ var (
 	ErrExtensionNotConfigured = errors.New("auth extend: ExtensionRunner not configured")
 )
 
+// ExtensionTimeoutError wraps ErrExtensionTimeout with the elapsed wait time
+// so callers can format user messages without parsing the error string.
+// Replaces v0.4.5's `fmt.Errorf("%w (waited %s)", …)` + caller-side regex.
+type ExtensionTimeoutError struct {
+	Elapsed time.Duration
+}
+
+func (e *ExtensionTimeoutError) Error() string {
+	return fmt.Sprintf("%s (waited %s)", ErrExtensionTimeout.Error(), e.Elapsed.Round(time.Second))
+}
+
+func (e *ExtensionTimeoutError) Unwrap() error { return ErrExtensionTimeout }
+
 type ExtendResult struct {
 	UUID            string
 	ServerExpiresAt time.Time
@@ -62,7 +75,7 @@ func (s *Service) Extend(ctx context.Context, timeout time.Duration) (*ExtendRes
 		select {
 		case <-ctx.Done():
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, fmt.Errorf("%w (waited %s)", ErrExtensionTimeout, time.Since(start).Round(time.Second))
+				return nil, &ExtensionTimeoutError{Elapsed: time.Since(start)}
 			}
 			return nil, ctx.Err()
 		case <-ticker.C:

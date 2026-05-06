@@ -14,6 +14,7 @@
 - 브라우저 로그인 기반 세션 저장과 재사용
   - QR 1차 + "이 기기 로그인 유지" 2차 확인까지 대기 후 저장 → persistent SESSION (서버 idle timeout 면제)
   - headless 모드 지원 — `auth login --headless [--qr-output <path>]` (SSH/CI 환경용)
+  - `auth extend` — 토스 서버 측 ~7일 활성 timer를 폰 푸시 승인 한 번으로 연장 (1년 SESSION 쿠키와 별개의 만료 시계). 24h 미만 남았을 때 모든 명령에서 stderr 한 줄 경고
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
 - `orders completed`, `order show <id>` 기반 주문 상태 조회
 - 거래내역 ledger: `transactions list/overview` — 매매/입출금/배당/주식입출고 + 현금 overview (KR/US, table/JSON/CSV, 200일 캡)

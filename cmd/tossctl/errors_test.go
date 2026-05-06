@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
@@ -142,10 +142,10 @@ func TestUserFacingCommandErrorAuthErrorMentionsExtend(t *testing.T) {
 func TestUserFacingCommandErrorExtensionTimeout(t *testing.T) {
 	t.Parallel()
 
-	wrapped := fmt.Errorf("%w (waited 120s)", auth.ErrExtensionTimeout)
+	wrapped := &auth.ExtensionTimeoutError{Elapsed: 120 * time.Second}
 	got := userFacingCommandError(wrapped).Error()
-	if !strings.Contains(got, "waited 120s") {
-		t.Fatalf("expected timeout detail, got %q", got)
+	if !strings.Contains(got, "waited 2m0s") && !strings.Contains(got, "waited 120s") {
+		t.Fatalf("expected timeout elapsed detail, got %q", got)
 	}
 	if !strings.Contains(got, "rerun") {
 		t.Fatalf("expected retry hint, got %q", got)

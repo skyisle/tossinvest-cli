@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	tossclient "github.com/junghoonkye/tossinvest-cli/internal/client"
@@ -33,8 +34,13 @@ func userFacingCommandError(err error) error {
 		return fmt.Errorf("stored session is no longer valid; run `tossctl auth extend` to renew, or `tossctl auth login` to re-authenticate")
 	}
 	if errors.Is(err, auth.ErrExtensionTimeout) {
-		// Surface the elapsed-time detail that Service.Extend wrapped into the error.
-		return fmt.Errorf("phone approval did not complete (%s); rerun `tossctl auth extend` to retry", extractParenDetail(err))
+		// Pull the elapsed-time detail from the typed wrapper so we don't have
+		// to scrape the error string for "(waited Ns)".
+		var timeout *auth.ExtensionTimeoutError
+		if errors.As(err, &timeout) {
+			return fmt.Errorf("phone approval did not complete (waited %s); rerun `tossctl auth extend` to retry", timeout.Elapsed.Round(time.Second))
+		}
+		return fmt.Errorf("phone approval did not complete; rerun `tossctl auth extend` to retry")
 	}
 	if errors.Is(err, auth.ErrExtensionRejected) {
 		return fmt.Errorf("phone approval was denied or canceled; rerun `tossctl auth extend` to retry")
@@ -219,19 +225,6 @@ func buildPlaceCommand(kind string, flags *placeFlags, confirm string) string {
 		args = append(args, "--execute", "--dangerously-skip-permissions", "--confirm", confirm)
 	}
 	return strings.Join(args, " ")
-}
-
-// extractParenDetail returns the parenthetical detail wrapped into a sentinel
-// error by Service.Extend (e.g. "(대기 120s)"). Returns "시간 초과" if no
-// detail is found, so the user-facing message is always a complete sentence.
-func extractParenDetail(err error) string {
-	msg := err.Error()
-	if i := strings.LastIndex(msg, "("); i != -1 {
-		if j := strings.LastIndex(msg, ")"); j > i {
-			return msg[i+1 : j]
-		}
-	}
-	return "시간 초과"
 }
 
 func formatCommandFloat(value float64) string {

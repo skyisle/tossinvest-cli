@@ -2,12 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.6] - Unreleased
+## [0.4.6] - 2026-05-06
 
 ### Added
-- **`tossctl auth extend`** — 폰 토스 앱 푸시 승인을 통해 세션 만료를 연장합니다. 블로킹 + 스피너 UX, `--timeout` (기본 120초). 사용 endpoint: `POST /api/v1/wts-login-extend/doc/request` → polling `GET /doc/{txId}/status` (`REQUESTED` → `COMPLETED`) → `POST /api/v1/wts-login-extend/{txId}/state` (필수 finalize) → `GET /api/v1/session/expired-at`. 약 7일 연장됩니다.
-- **24h 만료 경고** — 모든 명령 시작 시 서버 측 세션 만료가 24시간 미만으로 남았으면 stderr 한 줄로 경고 (`⚠ session expires in ~21h 58m; run`tossctl auth extend`to renew`). `--output json` 모드에서는 표시되지 않음.
-- **`session.json` 에 `server_expires_at` 필드 추가** — 서버 측 ~7일 만료 시계 (기존 `expires_at` 의 1년 쿠키 만료와 별개).
+- **`tossctl auth extend`** — 폰 토스 앱 푸시 승인을 통해 서버 측 세션 만료를 연장합니다. 블로킹 + Braille 스피너 UX, `--timeout` (기본 120초), `Ctrl+C` 처리. 사용 endpoint chain: `POST /api/v1/wts-login-extend/doc/request` → polling `GET /doc/{txId}/status` (`REQUESTED` → `COMPLETED`) → `POST /api/v1/wts-login-extend/{txId}/state` (필수 finalize) → `GET /api/v1/session/expired-at`. 약 7일 연장됩니다. 기여: @skyisle (PR #27)
+- **24h 만료 경고** — 모든 명령 시작 시 서버 측 세션 만료가 24시간 미만으로 남았으면 stderr 한 줄로 경고 (`⚠ session expires in ~21h 58m; run \`tossctl auth extend\` to renew`). `--output json` 모드와 `auth/version/help` skip-list에서는 silent.
+- **`session.json` 에 `server_expires_at` 필드 추가** — 서버 측 ~7일 활성 만료 시계 (기존 `expires_at` 의 1년 쿠키 만료와 별개). `auth status` table에 `Server Expiry: YYYY-MM-DD HH:MM KST` 줄 추가, JSON 출력에 `server_expires_at`.
+
+### Changed
+- `ExtensionTimeoutError{Elapsed}` 타입 도입 — 기존 `fmt.Errorf("%w (waited %s)", ...)` + caller-side `extractParenDetail` 문자열 파싱을 typed wrapper로 대체. 에러 메시지 포맷이 바뀌어도 elapsed 추출이 안 깨짐.
+- `formatKST(t)` helper 추출 — `auth status` / `auth extend` 출력의 `2006-01-02 15:04 KST` 포맷이 한 곳에서 관리됨.
+
+### Fixed
+- v0.4.0의 persistent SESSION 쿠키(1년)는 정상이어도 토스 서버 측 ~7일 활성 timer가 별도로 흐르는 사실이 그동안 묵묵히 401을 일으키고 있었음. `auth extend`로 매번 `auth login`(QR + 폰 풀 플로우)을 다시 돌지 않고 폰 푸시 한 번으로 연장 가능. (참고: `docs/reverse-engineering/auth-notes.md` Session Lifetime 섹션)
 
 ## [0.4.5] - 2026-04-29
 

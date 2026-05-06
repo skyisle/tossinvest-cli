@@ -55,7 +55,7 @@ func newRootCmd() *cobra.Command {
 			}
 			store := session.NewFileStore(resolveSessionFile(opts))
 			sess, _ := store.Load(cmd.Context())
-			writeExpiryWarningIfNeeded(cmd.ErrOrStderr(), sess, deepestCommandName(cmd), format, time.Now())
+			writeExpiryWarningIfNeeded(cmd.ErrOrStderr(), sess, cmd.Name(), format, time.Now())
 			return nil
 		},
 	}
@@ -113,13 +113,6 @@ func resolveSessionFile(opts *rootOptions) string {
 		return ""
 	}
 	return paths.SessionFile
-}
-
-func deepestCommandName(cmd *cobra.Command) string {
-	if cmd == nil {
-		return ""
-	}
-	return cmd.Name()
 }
 
 var expiryWarningSkipCommands = map[string]struct{}{
