@@ -345,7 +345,8 @@ tossctl doctor --report     # JSON 진단 번들 (이슈 첨부용, 경로 자�
 tossctl config init
 tossctl config show
 tossctl auth login
-tossctl auth status
+tossctl auth status         # 세션 + Server Expiry (KST) 표시
+tossctl auth extend         # 폰 푸시 승인으로 서버 측 ~7일 만료 연장
 tossctl auth doctor
 tossctl auth logout
 ```
