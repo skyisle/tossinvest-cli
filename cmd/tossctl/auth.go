@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/auth"
 	"github.com/junghoonkye/tossinvest-cli/internal/doctor"
@@ -49,8 +53,36 @@ func newAuthCmd(opts *rootOptions) *cobra.Command {
 	loginCmd.Flags().BoolVar(&loginHeadless, "headless", false, "Run Chrome headless (required for remote/CLI-only login)")
 	loginCmd.Flags().StringVar(&loginQROutput, "qr-output", "", "Path to write the current QR PNG (forward to phone via messenger)")
 
+	var extendTimeout time.Duration
+	extendCmd := &cobra.Command{
+		Use:   "extend",
+		Short: "Extend session via Toss app push approval",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app, err := newAppContext(opts)
+			if err != nil {
+				return err
+			}
+
+			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+
+			fmt.Fprintln(cmd.ErrOrStderr(), "Waiting for approval in the Toss app on your phone...")
+			stop := startSpinner(cmd.ErrOrStderr(), "Waiting for approval", isTerminal(cmd.ErrOrStderr()))
+			defer stop()
+
+			result, err := app.authService.Extend(ctx, extendTimeout)
+			stop()
+			if err != nil {
+				return userFacingCommandError(err)
+			}
+			return writeExtendResult(cmd.OutOrStdout(), result)
+		},
+	}
+	extendCmd.Flags().DurationVar(&extendTimeout, "timeout", 120*time.Second, "Maximum time to wait for phone approval")
+
 	cmd.AddCommand(
 		loginCmd,
+		extendCmd,
 		&cobra.Command{
 			Use:   "import-playwright-state <path>",
 			Short: "Import Playwright storage state into tossctl session storage",
@@ -167,12 +199,17 @@ func writeAuthStatus(w io.Writer, format output.Format, status auth.Status) erro
 			persistence = fmt.Sprintf("persistent cookie (expires %s)", status.ExpiresAt.Format("2006-01-02 15:04:05Z07:00"))
 		}
 
+		if _, err := fmt.Fprintf(w, "Session: %s\nProvider: %s\nPersistence: %s\n", state, status.Provider, persistence); err != nil {
+			return err
+		}
+		if status.ServerExpiresAt != nil {
+			if _, err := fmt.Fprintf(w, "Server Expiry: %s\n", status.ServerExpiresAt.In(kstZone).Format("2006-01-02 15:04 MST")); err != nil {
+				return err
+			}
+		}
 		_, err := fmt.Fprintf(
 			w,
-			"Session: %s\nProvider: %s\nPersistence: %s\nLive Check: %s\nRetrieved At: %s\nSession File: %s\n",
-			state,
-			status.Provider,
-			persistence,
+			"Live Check: %s\nRetrieved At: %s\nSession File: %s\n",
 			liveCheck,
 			status.RetrievedAt.Format("2006-01-02 15:04:05Z07:00"),
 			status.SessionFile,
@@ -257,4 +294,69 @@ func writeLogoutResult(w io.Writer, format output.Format, sessionFile string, cl
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}
+}
+
+// kstZone is the named time.Location used for displaying server-side expiry
+// times. /api/v1/session/expired-at returns RFC3339Nano with a numeric +09:00
+// offset, which time.Parse stores as an anonymous FixedZone (empty name) —
+// formatting that with "MST" would print "+0900" instead of "KST". Pinning to
+// a named zone before formatting guarantees the human-readable label.
+var kstZone = time.FixedZone("KST", 9*3600)
+
+func writeExtendResult(w io.Writer, result *auth.ExtendResult) error {
+	_, err := fmt.Fprintf(
+		w,
+		"✓ Extension complete. New expiry: %s (took %s)\n",
+		result.ServerExpiresAt.In(kstZone).Format("2006-01-02 15:04 MST"),
+		result.Elapsed.Round(time.Second),
+	)
+	return err
+}
+
+// startSpinner returns a stop function. In non-TTY mode it writes nothing.
+// Safe to call stop() more than once.
+func startSpinner(w io.Writer, label string, tty bool) func() {
+	if !tty {
+		return func() {}
+	}
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		defer close(doneCh)
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		i := 0
+		for {
+			select {
+			case <-stopCh:
+				fmt.Fprint(w, "\r\033[K")
+				return
+			case <-ticker.C:
+				fmt.Fprintf(w, "\r%s %s", frames[i%len(frames)], label)
+				i++
+			}
+		}
+	}()
+	stopped := false
+	return func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		close(stopCh)
+		<-doneCh
+	}
+}
+
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
 }

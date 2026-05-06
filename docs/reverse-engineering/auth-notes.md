@@ -84,6 +84,25 @@ Consequences:
 - No "silent re-auth via long-lived token" exists. Without a valid SESSION the server's `/api/v3/init` issues a fresh guest SESSION and the page redirects to `/signin`. `UTK/LTK/FTK/BTK` alone do not prove identity.
 - Browser tabs appear to "persist for days" only because (a) the dashboard polls authenticated APIs every 3–30 seconds while the tab is open (≈460 calls observed over 18 min of user idle), keeping the idle timer warm, or (b) the browser has a persistent SESSION from having confirmed "이 기기 로그인 유지".
 
+### Server-side activity expiry (~7 days)
+
+Despite the 1-year cookie `Max-Age`, the server runs a separate ~7-day activity-expiry clock per session. `GET /api/v1/session/expired-at` returns the current value as KST RFC3339. When < 24h remain, the web app displays a `로그인이 곧 풀릴 수 있어요` tooltip and a `로그인 유지하기` button inside the profile popover.
+
+Full extension flow (captured live 2026-05-05):
+
+```
+POST /api/v1/wts-login-extend/doc/request           → {result:{txId:"<uuid>"}}      // also sends phone push
+GET  /api/v1/wts-login-extend/doc/{txId}/status     → {result:"REQUESTED"}          // poll ~1s while pending
+                                                    → {result:"COMPLETED"}          // after phone approval
+POST /api/v1/wts-login-extend/{txId}/state          → 200 {}                        // ★ required finalize — without this, expired-at does NOT advance
+GET  /api/v1/session/expired-at                     → {result:"<new ISO8601 KST>"}  // ~7 days further out
+GET  /api/v1/wts-login-extend/doc/{txId}/status     → {result:"EXPIRED"}            // doc consumed
+```
+
+The `POST /state` step is the easy thing to miss: status `COMPLETED` looks like success but the server activity clock only advances after `/state` is called. tossctl mirrors this full chain in `tossctl auth extend`.
+
+The **"Exempt"** entry in the table above therefore applies only to the cookie-level idle timeout (the ≈1-hour sliding window). It does **not** exempt the persistent SESSION from this server-side activity-expiry clock. In practice, a long-running CLI automation that never idles more than 1 hour can still hit a hard wall after ~7 days without explicit extension.
+
 ## Logout Behavior (Set-Cookie on 2xx)
 
 Several `wts-cert-api.tossinvest.com` endpoints respond to 2xx requests with `Set-Cookie: SESSION=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax` — an instruction to **delete** the client-side SESSION cookie. Observed at least on:
