@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/monitor"
@@ -21,21 +22,9 @@ func newMonitorCmd(opts *rootOptions) *cobra.Command {
 		Long: `Run schema-invariant probes against the read-only Toss endpoints the
 CLI depends on. Designed for cron / launchd.
 
-Exits 0 when every probe passes, 1 if any probe fails. Output goes to
-stdout (table) so notification channels can be composed in the cron line.
-
-Examples:
-
-  # bare check, exit code drives the cron
-  tossctl monitor api --quiet
-
-  # send a Discord alert on failure (substitute your own webhook URL)
-  tossctl monitor api --quiet || curl -sS -X POST \
-    -H 'Content-Type: application/json' \
-    -d '{"content":"tossctl regression"}' \
-    "$YOUR_DISCORD_WEBHOOK"
-
-See AGENTS.md for more recipes (Slack, ntfy, macOS notification, etc.).`,
+Exits 0 when every probe passes, 1 if any probe fails. Compose alert
+channels (Discord, Slack, ntfy, mail, …) in the cron line via "||".
+See AGENTS.md for recipes.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app, err := newAppContext(opts)
 			if err != nil {
@@ -61,13 +50,9 @@ See AGENTS.md for more recipes (Slack, ntfy, macOS notification, etc.).`,
 	return cmd
 }
 
-// monitorQuiet is a package-level state for the --quiet flag; kept simple
-// because the monitor command tree has a single mutating subcommand.
 var monitorQuiet bool
 
-func printResults(stdout, stderr interface {
-	Write([]byte) (int, error)
-}, results []monitor.Result, quiet bool) {
+func printResults(stdout, stderr io.Writer, results []monitor.Result, quiet bool) {
 	pass, fail := 0, 0
 	for _, r := range results {
 		if r.OK {

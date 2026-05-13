@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.11] - 2026-05-13
+
+### Changed
+- `monitor` 모듈 잔여 over-abstraction 정리. `expectStatus` 의 사용 안 되는 `body` 파라미터 제거 (호출자 6곳 정리), `printResults` 의 인라인 익명 인터페이스를 `io.Writer` 로 치환, `monitor api --help` 의 Discord-specific 예시 제거 (alert recipe 는 `AGENTS.md` 한 곳으로 단일화). `Probe` 필드 인라인 주석 정리. 동작 변화 없음 — 코드만 unix 철학에 맞게 더 좁힘.
+
 ## [0.4.10] - 2026-05-13
 
 ### Changed

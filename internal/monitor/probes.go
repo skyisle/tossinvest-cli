@@ -24,12 +24,11 @@ import (
 
 // Probe describes one endpoint to validate.
 type Probe struct {
-	Name   string // short id for logs / Discord
-	Method string // GET / POST
-	URL    string // absolute URL
-	Body   string // empty for GET; required for POST
-	// Check returns nil on success, error string on failure.
-	Check func(status int, body []byte) error
+	Name   string
+	Method string
+	URL    string
+	Body   string
+	Check  func(status int, body []byte) error
 }
 
 // Result of one probe execution.
@@ -61,7 +60,7 @@ func Probes() []Probe {
 			Method: "GET",
 			URL:    api + "/api/v1/account/list",
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				return expectPath(body, "result.accountList", "array")
@@ -72,7 +71,7 @@ func Probes() []Probe {
 			Method: "GET",
 			URL:    cert + "/api/v3/my-assets/summaries/markets/all/overview",
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				if err := expectPath(body, "result.overviewByMarket", "object"); err != nil {
@@ -90,7 +89,7 @@ func Probes() []Probe {
 			URL:    cert + "/api/v2/dashboard/asset/sections/all",
 			Body:   `{"types":["SORTED_OVERVIEW"]}`,
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				if err := expectPath(body, "result.sections", "array"); err != nil {
@@ -128,7 +127,7 @@ func Probes() []Probe {
 			URL:    cert + "/api/v2/dashboard/asset/sections/all",
 			Body:   `{"types":["WATCHLIST"]}`,
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				var env struct {
@@ -155,7 +154,7 @@ func Probes() []Probe {
 			Method: "GET",
 			URL:    info + "/api/v2/stock-infos/A005930",
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				if err := expectPath(body, "result.symbol", "string"); err != nil {
@@ -169,7 +168,7 @@ func Probes() []Probe {
 			Method: "GET",
 			URL:    cert + "/api/v1/trading/orders/histories/all/pending",
 			Check: func(status int, body []byte) error {
-				if err := expectStatus(status, body, 200); err != nil {
+				if err := expectStatus(status, 200); err != nil {
 					return err
 				}
 				return expectPath(body, "result", "array")
@@ -235,15 +234,12 @@ func runOne(ctx context.Context, sess *session.Session, p Probe) Result {
 	return res
 }
 
-// expectStatus reports a status-code mismatch. The error string is composed
-// only of the observed and expected status codes; response bodies are not
-// embedded so the webhook payload stays bounded and predictable. Operators
-// investigate full bodies locally with their own session.
-func expectStatus(got int, body []byte, want int) error {
+// expectStatus reports a status-code mismatch. Response bodies are not
+// embedded in the error so downstream alert payloads stay bounded.
+func expectStatus(got, want int) error {
 	if got == want {
 		return nil
 	}
-	_ = body
 	return fmt.Errorf("status %d (want %d)", got, want)
 }
 
