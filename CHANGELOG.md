@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.9] - 2026-05-13
+
+### Added
+- **`tossctl monitor api`** — 6개 read-only endpoint (account-list, summary-overview, positions, watchlist, quote, pending-orders) 에 schema-invariant probe 실행. 핵심 JSON 경로/타입이 깨지면 exit 1 + 선택적 Discord webhook 알림 (`--webhook` 또는 `TOSSCTL_MONITOR_WEBHOOK`). 사용자별 본인 세션·본인 머신·본인 webhook 으로만 동작하는 self-test 구조 — #29 같은 토스 서버측 body 계약 변경을 사용자보다 먼저 감지하기 위한 cron 대상. cron 설정과 새 probe 추가 가이드는 `docs/operations.md`.
+
+### Security
+- **monitor 알림에 응답 본문 절대 포함 안 함** — `expectStatus` 가 status code 불일치 시 응답 본문 200B 샘플을 에러 메시지에 박던 초안을 폐기하고, status code + 기대값만 노출하도록 변경. 토스 에러 응답에 종종 계좌번호·자산 합계가 들어있어 webhook 으로 PII 가 흘러갈 수 있던 경로 차단. 모든 probe Check 함수가 "PII marker 가 에러 문자열에 흘러나가지 않는지" 단위 테스트로 강제 (`TestProbeChecksDoNotLeakResponseBodyOnFailure`).
+
 ## [0.4.8] - 2026-05-13
 
 ### Fixed

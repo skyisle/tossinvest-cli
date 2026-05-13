@@ -351,6 +351,15 @@ tossctl auth doctor
 tossctl auth logout
 ```
 
+### API 회귀 감시
+
+```bash
+tossctl monitor api                                # 6개 endpoint schema probe
+TOSSCTL_MONITOR_WEBHOOK=https://... tossctl monitor api  # 실패 시 Discord 알림
+```
+
+본인 세션으로 본인 머신에서 본인 계좌만 호출하는 **self-test** 입니다 (다른 사용자 데이터 수집 없음). 토스가 endpoint body 계약을 조용히 바꿔서 user-facing 회귀가 발생하던 [#29](https://github.com/JungHoonGhae/tossinvest-cli/issues/29) 같은 사고를 사용자보다 먼저 잡으려는 용도. cron으로 매일/시간별 실행 권장 — 설정은 [`docs/operations.md`](docs/operations.md). webhook 페이로드에는 endpoint 이름·HTTP 상태·schema 진단 메시지만 송출되고 계좌번호·자산 합계·종목 코드는 흘러가지 않음 (단위 테스트로 강제).
+
 ## 주문 ref rollover
 
 `amend`나 `cancel` 이후 브로커 쪽 주문 ref가 바뀔 수 있습니다.

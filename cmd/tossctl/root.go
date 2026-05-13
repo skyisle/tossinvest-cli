@@ -93,6 +93,7 @@ func newRootCmd() *cobra.Command {
 		newOrderCmd(opts),
 		newExportCmd(opts),
 		newPushCmd(opts),
+		newMonitorCmd(opts),
 	)
 
 	return cmd
