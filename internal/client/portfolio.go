@@ -66,8 +66,13 @@ func (c *Client) ListPositions(ctx context.Context) ([]domain.Position, error) {
 		return nil, err
 	}
 
+	// 2026-05-13: Toss server started requiring an explicit `types` filter on
+	// /sections/all. Empty `{}` body still returns 200 but with empty sections
+	// (and pollIntervalMillis hint). Without the filter the old "find the
+	// SORTED_OVERVIEW section" loop trips its "not found" error. Pass the
+	// filter so the server returns the section we actually want. (Fixes #29)
 	var envelope assetSectionsEnvelope
-	if err := c.postJSON(ctx, c.certBaseURL+"/api/v2/dashboard/asset/sections/all", json.RawMessage("{}"), &envelope); err != nil {
+	if err := c.postJSON(ctx, c.certBaseURL+"/api/v2/dashboard/asset/sections/all", json.RawMessage(`{"types":["SORTED_OVERVIEW"]}`), &envelope); err != nil {
 		return nil, err
 	}
 

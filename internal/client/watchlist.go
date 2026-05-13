@@ -28,8 +28,10 @@ func (c *Client) ListWatchlist(ctx context.Context) ([]domain.WatchlistItem, err
 		return nil, err
 	}
 
+	// 2026-05-13: Toss server now requires an explicit `types` filter on
+	// /sections/all; empty `{}` body returns empty sections. See portfolio.go.
 	var envelope assetSectionsEnvelope
-	if err := c.postJSON(ctx, c.certBaseURL+"/api/v2/dashboard/asset/sections/all", json.RawMessage("{}"), &envelope); err != nil {
+	if err := c.postJSON(ctx, c.certBaseURL+"/api/v2/dashboard/asset/sections/all", json.RawMessage(`{"types":["WATCHLIST"]}`), &envelope); err != nil {
 		return nil, err
 	}
 

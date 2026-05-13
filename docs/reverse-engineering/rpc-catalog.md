@@ -88,8 +88,8 @@ These are approved CLI targets. Initial authenticated discovery happened on 2026
 | `auth` | `GET` | `wts-api.tossinvest.com` | `/api/v1/my-assets/summaries/markets/us/withdrawable-amount` | USD withdrawable amounts | `.result.amount0..amount3`, `.result.date0..date3` | `account summary` | public account summary dependency |
 | `auth` | `GET` | `wts-cert-api.tossinvest.com` | `/api/v1/trading/orders/histories/all/pending` | pending order history | `.result` list | `orders list` | initial capture returned an empty list |
 | `auth` | `GET` | `wts-cert-api.tossinvest.com` | `/api/v1/dashboard/common/cached-orderable-amount` | orderable buying power | `.result.orderableAmountKr`, `.result.orderableAmountUs` | `account summary` | useful for summary view |
-| `auth` | `POST` | `wts-cert-api.tossinvest.com` | `/api/v1/dashboard/asset/sections/all` | account dashboard sections | body contract unknown | `portfolio positions`, watch surfaces | likely main holdings source |
-| `auth` | `POST` | `wts-cert-api.tossinvest.com` | `/api/v2/dashboard/asset/sections/all` | account dashboard sections v2 | body contract unknown | `portfolio positions`, watch surfaces | likely richer version of asset sections |
+| `auth` | `POST` | `wts-cert-api.tossinvest.com` | `/api/v1/dashboard/asset/sections/all` | account dashboard sections | body `{"types":["MIDDLE"]}` (and others) | dashboard middle banner | filter required since 2026-05-13 (#29) |
+| `auth` | `POST` | `wts-cert-api.tossinvest.com` | `/api/v2/dashboard/asset/sections/all` | account dashboard sections v2 | body `{"types":["SORTED_OVERVIEW"\|"WATCHLIST"\|...]}` | `portfolio positions`, `watchlist list` | **2026-05-13: empty `{}` body now returns empty sections + `pollIntervalMillis`. Must pass `types` filter.** |
 | `auth` | `POST` | `wts-cert-api.tossinvest.com` | `/api/v1/profit/overview` | profit overview widget | body contract unknown | `portfolio allocation` | body still needs capture |
 
 Watchlist-specific endpoints are still not isolated. The `/account` page did not clearly expose a standalone watchlist read path in the first authenticated capture.

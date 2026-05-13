@@ -2,10 +2,12 @@ package client
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/junghoonkye/tossinvest-cli/internal/session"
@@ -43,6 +45,39 @@ func TestListPositionsFromFixtures(t *testing.T) {
 	}
 	if positions[0].Name == "" {
 		t.Fatal("expected first position to have a name")
+	}
+}
+
+// Issue #29: Toss server (2026-05-13) started ignoring the old empty `{}`
+// body and requires an explicit `types` filter. Without the filter, sections
+// comes back empty and ListPositions raised "SORTED_OVERVIEW section not
+// found". Assert the wire body keeps the filter going forward.
+func TestListPositionsSendsTypesFilter(t *testing.T) {
+	t.Parallel()
+
+	var capturedBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/dashboard/asset/sections/all" {
+			body, _ := io.ReadAll(r.Body)
+			capturedBody = string(body)
+		}
+		http.ServeFile(w, r, portfolioFixturePath(t))
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		HTTPClient:  server.Client(),
+		APIBaseURL:  server.URL,
+		InfoBaseURL: server.URL,
+		CertBaseURL: server.URL,
+		Session:     &session.Session{Cookies: map[string]string{"SESSION": "test-session"}},
+	})
+
+	if _, err := client.ListPositions(context.Background()); err != nil {
+		t.Fatalf("ListPositions returned error: %v", err)
+	}
+	if !strings.Contains(capturedBody, `"types"`) || !strings.Contains(capturedBody, `"SORTED_OVERVIEW"`) {
+		t.Fatalf("expected wire body to carry types filter for SORTED_OVERVIEW, got %q", capturedBody)
 	}
 }
 

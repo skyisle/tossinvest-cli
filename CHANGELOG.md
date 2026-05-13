@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.8] - 2026-05-13
+
+### Fixed
+- **`portfolio positions` · `watchlist list` 회귀 (#29)** — 2026-05-13 16:10 KST 즈음 토스 서버가 `/api/v2/dashboard/asset/sections/all` 의 body 계약을 변경. 기존 빈 `{}` body는 여전히 200을 반환하지만 sections가 빈 배열 + `pollIntervalMillis: 3000` 만 내려와, CLI가 "SORTED_OVERVIEW section not found" / "WATCHLIST section not found"로 실패했음. 새 계약은 `{"types":[<section-name>]}` 필터 필수. 두 커맨드 모두 해당 필터를 송출하도록 수정. (제보: kwakmu18, #29)
+- 라이브 캡처 결과 `docs/reverse-engineering/rpc-catalog.md` 에 body 형식 명시.
+
+### Notes
+- 다른 read-only API (`account`, `orders`, `quote`, `transactions`, `account summary` 등)는 이번 토스 변경에 영향 없음이 같은 세션으로 확인됨.
+
 ## [0.4.7] - 2026-05-06
 
 ### Fixed
