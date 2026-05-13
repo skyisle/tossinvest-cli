@@ -2,13 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.10] - 2026-05-13
+
+### Changed
+- `monitor api` 시그니처 단순화: `--webhook` / `TOSSCTL_MONITOR_WEBHOOK` 제거. exit 0/1 만 반환하고 알림 채널 (Discord · Slack · ntfy · macOS notification · 이메일 등) 은 cron 라인의 `|| <command>` 우항에서 사용자가 합성. 합성 recipe 는 신규 `AGENTS.md`.
+
+### Removed
+- `internal/monitor/discord.go` (Discord webhook 송출 헬퍼). 동등한 효과는 한 줄 `curl` 합성으로 충분.
+
+### Added
+- `AGENTS.md` — OpenClaw · Claude Code · Codex · Cursor 등 AI 에이전트가 `monitor api` 와 알림 채널을 cron 으로 묶을 때 참고할 짧은 recipe 모음.
+
 ## [0.4.9] - 2026-05-13
 
 ### Added
-- **`tossctl monitor api`** — 6개 read-only endpoint (account-list, summary-overview, positions, watchlist, quote, pending-orders) 에 schema-invariant probe 실행. 핵심 JSON 경로/타입이 깨지면 exit 1 + 선택적 Discord webhook 알림 (`--webhook` 또는 `TOSSCTL_MONITOR_WEBHOOK`). 사용자별 본인 세션·본인 머신·본인 webhook 으로만 동작하는 self-test 구조 — #29 같은 토스 서버측 body 계약 변경을 사용자보다 먼저 감지하기 위한 cron 대상. cron 설정과 새 probe 추가 가이드는 `docs/operations.md`.
+- **`tossctl monitor api`** — 6개 read-only endpoint (account-list, summary-overview, positions, watchlist, quote, pending-orders) 에 schema-invariant probe 실행. 핵심 JSON 경로/타입 검증이 실패하면 exit 1 + 선택적 Discord webhook 알림 (`--webhook` 또는 `TOSSCTL_MONITOR_WEBHOOK`). 본인 세션으로 본인 머신에서 본인이 설정한 webhook 한 곳에만 보고. #29 같은 토스 서버측 body 계약 변경을 cron 으로 조기 감지하기 위한 도구. 설정 가이드: `docs/operations.md`.
 
-### Security
-- **monitor 알림에 응답 본문 절대 포함 안 함** — `expectStatus` 가 status code 불일치 시 응답 본문 200B 샘플을 에러 메시지에 박던 초안을 폐기하고, status code + 기대값만 노출하도록 변경. 토스 에러 응답에 종종 계좌번호·자산 합계가 들어있어 webhook 으로 PII 가 흘러갈 수 있던 경로 차단. 모든 probe Check 함수가 "PII marker 가 에러 문자열에 흘러나가지 않는지" 단위 테스트로 강제 (`TestProbeChecksDoNotLeakResponseBodyOnFailure`).
+### Changed
+- `expectStatus` 가 webhook 알림에 status code + 기대값만 노출 (응답 본문 fragment 미포함). 단위 테스트 `TestProbeChecksDoNotLeakResponseBodyOnFailure` 로 회귀 방지.
 
 ## [0.4.8] - 2026-05-13
 

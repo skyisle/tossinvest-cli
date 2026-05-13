@@ -235,19 +235,15 @@ func runOne(ctx context.Context, sess *session.Session, p Probe) Result {
 	return res
 }
 
-// expectStatus asserts the HTTP status.
-//
-// PRIVACY: the error message MUST NOT include the response body. Toss error
-// payloads on 4xx/5xx routinely carry the account number, asset totals, or
-// other PII; embedding even a 200-byte sample would forward those values to
-// any configured Discord webhook. Status code + expected code alone is
-// enough to alert — operators investigate the body locally with their own
-// session.
+// expectStatus reports a status-code mismatch. The error string is composed
+// only of the observed and expected status codes; response bodies are not
+// embedded so the webhook payload stays bounded and predictable. Operators
+// investigate full bodies locally with their own session.
 func expectStatus(got int, body []byte, want int) error {
 	if got == want {
 		return nil
 	}
-	_ = body // intentionally unused — see PRIVACY note above.
+	_ = body
 	return fmt.Errorf("status %d (want %d)", got, want)
 }
 
