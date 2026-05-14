@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.12] - 2026-05-14
+
+### Fixed
+- **Windows 에서 `tossctl auth login` 이 `AttributeError: module 'os' has no attribute 'fchmod'` 로 끊기던 회귀 (#26)** — `os.fchmod` 는 Unix 전용이라 Windows Python 에서는 노출되지 않음. auth-helper 의 권한 설정을 `_set_private_permissions` 헬퍼로 통일하고, fchmod 가 없으면 chmod 로 fallback. chmod 의 fd 인자 지원도 platform-dependent 라 (`os.supports_fd`), 일부 Windows 환경에서 `TypeError`/`OSError` 가 발생하면 best-effort 로 silently skip — 권한 설정은 못 해도 storage-state 파일 저장은 정상 진행. 회귀 검증 단위 테스트 3개 추가. (제보 + 수정: @netics01)
+
 ## [0.4.11] - 2026-05-13
 
 ### Changed
