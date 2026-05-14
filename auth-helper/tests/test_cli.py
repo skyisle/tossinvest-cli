@@ -29,6 +29,16 @@ class PrivatePermissionTests(unittest.TestCase):
         fake_os.fchmod.assert_called_once_with(456, 0o600)
         fake_os.chmod.assert_not_called()
 
+    def test_set_private_permissions_swallows_chmod_errors(self):
+        # Windows: os.chmod 가 fd 인자를 거부할 때 (TypeError) 또는
+        # 핸들 변환에 실패할 때 (OSError) 호출자가 깨지지 않아야 한다.
+        # 권한 설정은 best-effort, 파일 저장은 반드시 진행.
+        for exc in (TypeError("fd not supported"), OSError("invalid handle")):
+            with self.subTest(exc=type(exc).__name__):
+                fake_os = types.SimpleNamespace(chmod=Mock(side_effect=exc))
+                with patch.object(cli, "os", fake_os):
+                    cli._set_private_permissions(789)  # must not raise
+
 
 if __name__ == "__main__":
     unittest.main()

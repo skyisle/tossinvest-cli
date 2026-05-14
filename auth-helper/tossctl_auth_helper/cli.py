@@ -179,6 +179,8 @@ def decode_qr_url(page) -> str | None:
 
 
 def _set_private_permissions(fd: int, mode: int = 0o600) -> None:
+    # Windows: fchmod 미지원, chmod 의 fd 지원도 platform-dependent.
+    # 권한 설정 실패해도 파일 저장은 진행되어야 하므로 best-effort.
     fchmod = getattr(os, "fchmod", None)
     if callable(fchmod):
         fchmod(fd, mode)
@@ -186,7 +188,10 @@ def _set_private_permissions(fd: int, mode: int = 0o600) -> None:
 
     chmod = getattr(os, "chmod", None)
     if callable(chmod):
-        chmod(fd, mode)
+        try:
+            chmod(fd, mode)
+        except (OSError, TypeError):
+            pass
 
 
 def save_qr_png(data_uri: str, output_path: Path) -> bool:
