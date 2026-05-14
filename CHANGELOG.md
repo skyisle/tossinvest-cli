@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.14] - 2026-05-14
+
+### Changed
+- **자동 업데이트 알림이 AI 에이전트에도 surface 되도록 확장.** v0.4.13 의 tty-only 게이트가 모든 비-tty 호출 (Claude Code, Codex, OpenClaw 등 모든 agent 통한 호출 포함) 에서 알림을 숨겨, repo description 인 "AI 에이전트를 토스증권에 연결하는 비공식 CLI" 와 모순이었음. 이제 tty 검사 제거 + `internal/updatecheck` cache 에 `update_notified_at` 추가로 24h 1회만 출력 — cron/loop 호출에서도 노이즈 누적 없음. JSON/CSV 출력은 여전히 자동 skip (구조화 파이프라인 보호).
+- **세션 만료 경고에 1시간 backoff 추가.** 동일 원칙. 24h 이내 만료 윈도우 안에서 매 명령 호출마다 stderr 한 줄이 떴던 것을 1시간 1회로. `internal/updatecheck` cache 의 `expiry_notified_at` 활용 — 별도 cache 파일 추가 없음.
+
+### Added
+- **`tossctl version` 출력에 `latest` 표시.** JSON 모드의 `latest` + `update_available` 필드, table 모드의 `latest:` 줄. agent 가 `tossctl version --output json` 만 parse 해도 새 버전 사실을 사용자에게 surface 가능. `update_check.enabled=false` 와 무관하게 version 명령은 항상 표시 (사용자가 명시적으로 버전 컨텍스트를 요청한 것이므로).
+- **`tossctl config show` 의 `Update Check` 줄 + JSON `update_check`.**  CSV 헤더에 `update_check_enabled` 추가.
+
 ## [0.4.13] - 2026-05-14
 
 ### Added

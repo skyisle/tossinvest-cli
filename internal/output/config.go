@@ -20,7 +20,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 	case FormatCSV:
 		writer := csv.NewWriter(w)
 		if err := writer.Write([]string{
-			"config_file", "exists", "schema_version", "source_schema_version", "place", "sell", "kr", "fractional", "cancel", "amend", "allow_live_order_actions", "accept_fx_consent", "legacy_fields",
+			"config_file", "exists", "schema_version", "source_schema_version", "place", "sell", "kr", "fractional", "cancel", "amend", "allow_live_order_actions", "accept_fx_consent", "update_check_enabled", "legacy_fields",
 		}); err != nil {
 			return err
 		}
@@ -37,6 +37,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 			strconv.FormatBool(status.Trading.Amend),
 			strconv.FormatBool(status.Trading.AllowLiveOrderActions),
 			strconv.FormatBool(status.Trading.DangerousAutomation.AcceptFXConsent),
+			strconv.FormatBool(status.UpdateCheck.Enabled),
 			strings.Join(status.LegacyFields, "|"),
 		}); err != nil {
 			return err
@@ -61,7 +62,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 		}
 		if _, err := fmt.Fprintf(
 			w,
-			"Trading Place: %t\nTrading Sell: %t\nTrading KR: %t\nTrading Fractional: %t\nTrading Cancel: %t\nTrading Amend: %t\nAllow Live Order Actions: %t\nDangerous Automation: %s\n",
+			"Trading Place: %t\nTrading Sell: %t\nTrading KR: %t\nTrading Fractional: %t\nTrading Cancel: %t\nTrading Amend: %t\nAllow Live Order Actions: %t\nDangerous Automation: %s\nUpdate Check: %s\n",
 			status.Trading.Place,
 			status.Trading.Sell,
 			status.Trading.KR,
@@ -70,6 +71,7 @@ func WriteConfigStatus(w io.Writer, format Format, status config.Status) error {
 			status.Trading.Amend,
 			status.Trading.AllowLiveOrderActions,
 			formatDangerousAutomation(status.Trading.DangerousAutomation),
+			formatUpdateCheck(status.UpdateCheck),
 		); err != nil {
 			return err
 		}
@@ -89,4 +91,11 @@ func formatDangerousAutomation(value config.DangerousAutomation) string {
 		return "none"
 	}
 	return strings.Join(enabled, ", ")
+}
+
+func formatUpdateCheck(value config.UpdateCheck) string {
+	if value.Enabled {
+		return "enabled"
+	}
+	return "disabled"
 }

@@ -141,3 +141,59 @@ type failingTransport struct{}
 func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, http.ErrHandlerTimeout
 }
+
+func TestShouldNotifyUpdateBackoff(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "update-check.json")
+	seed := cacheEntry{LastCheckedAt: time.Now().Add(-time.Minute), LatestVersion: "0.4.13"}
+	data, _ := json.Marshal(seed)
+	if err := os.WriteFile(cachePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Checker{cachePath: cachePath, repoSlug: "x/y", interval: 24 * time.Hour, now: time.Now}
+
+	// First call: should notify.
+	latest, ok := c.ShouldNotifyUpdate(context.Background(), "0.4.12")
+	if !ok || latest != "0.4.13" {
+		t.Fatalf("first call: expected notify=true latest=0.4.13, got notify=%v latest=%q", ok, latest)
+	}
+	c.MarkUpdateNotified()
+
+	// Second call within the interval: should suppress.
+	if _, ok := c.ShouldNotifyUpdate(context.Background(), "0.4.12"); ok {
+		t.Fatal("second call within interval: expected notify=false (suppressed by backoff)")
+	}
+
+	// Same version: should not notify.
+	if _, ok := c.ShouldNotifyUpdate(context.Background(), "0.4.13"); ok {
+		t.Fatal("same version: expected notify=false")
+	}
+}
+
+func TestShouldNotifyExpiryHourlyBackoff(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "update-check.json")
+	c := &Checker{cachePath: cachePath, repoSlug: "x/y", interval: 24 * time.Hour, now: time.Now}
+
+	// No cache yet: should notify.
+	if !c.ShouldNotifyExpiry() {
+		t.Fatal("first call: expected notify=true")
+	}
+	c.MarkExpiryNotified()
+
+	// Immediate re-check: suppressed.
+	if c.ShouldNotifyExpiry() {
+		t.Fatal("immediate re-check: expected notify=false (suppressed within hour)")
+	}
+
+	// Backdate the cache by 2h and re-check: should notify again.
+	entry, _ := c.readCache()
+	entry.ExpiryNotifiedAt = time.Now().Add(-2 * time.Hour)
+	if err := c.writeCache(entry); err != nil {
+		t.Fatal(err)
+	}
+	if !c.ShouldNotifyExpiry() {
+		t.Fatal("after 2h: expected notify=true")
+	}
+}

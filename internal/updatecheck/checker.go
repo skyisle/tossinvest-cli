@@ -26,8 +26,10 @@ const (
 )
 
 type cacheEntry struct {
-	LastCheckedAt time.Time `json:"last_checked_at"`
-	LatestVersion string    `json:"latest_version"`
+	LastCheckedAt    time.Time `json:"last_checked_at"`
+	LatestVersion    string    `json:"latest_version"`
+	UpdateNotifiedAt time.Time `json:"update_notified_at,omitempty"`
+	ExpiryNotifiedAt time.Time `json:"expiry_notified_at,omitempty"`
 }
 
 type Checker struct {
@@ -62,8 +64,48 @@ func (c *Checker) LatestStable(ctx context.Context) string {
 		return entry.LatestVersion
 	}
 
-	_ = c.writeCache(cacheEntry{LastCheckedAt: c.now(), LatestVersion: latest})
+	entry.LastCheckedAt = c.now()
+	entry.LatestVersion = latest
+	_ = c.writeCache(entry)
 	return latest
+}
+
+// ShouldNotifyUpdate reports whether the caller should emit an "update
+// available" line for the given current version. Returns the latest version
+// (empty if unknown) and a bool — true only when (a) latest is newer than
+// current and (b) we haven't already notified within the cache interval. The
+// caller must call MarkUpdateNotified after actually printing the notice.
+func (c *Checker) ShouldNotifyUpdate(ctx context.Context, currentVersion string) (string, bool) {
+	latest := c.LatestStable(ctx)
+	if !IsNewer(latest, currentVersion) {
+		return latest, false
+	}
+	entry, _ := c.readCache()
+	if c.now().Sub(entry.UpdateNotifiedAt) < c.interval {
+		return latest, false
+	}
+	return latest, true
+}
+
+func (c *Checker) MarkUpdateNotified() {
+	entry, _ := c.readCache()
+	entry.UpdateNotifiedAt = c.now()
+	_ = c.writeCache(entry)
+}
+
+// ShouldNotifyExpiry reports whether the caller should emit a session-expiry
+// warning right now. It enforces a 1-hour backoff so agents calling tossctl
+// many times per minute don't see the same warning on every invocation. The
+// caller must call MarkExpiryNotified after printing.
+func (c *Checker) ShouldNotifyExpiry() bool {
+	entry, _ := c.readCache()
+	return c.now().Sub(entry.ExpiryNotifiedAt) >= time.Hour
+}
+
+func (c *Checker) MarkExpiryNotified() {
+	entry, _ := c.readCache()
+	entry.ExpiryNotifiedAt = c.now()
+	_ = c.writeCache(entry)
 }
 
 func (c *Checker) fetch(ctx context.Context) (string, error) {
