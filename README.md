@@ -175,6 +175,9 @@ tossctl config show
     "dangerous_automation": {
       "accept_fx_consent": false
     }
+  },
+  "update_check": {
+    "enabled": true
   }
 }
 ```
@@ -189,6 +192,7 @@ tossctl config show
 | `fractional` | 소수점 주문 허용 (`place`도 필요, US 시장가만) — **scope 선언** |
 | `allow_live_order_actions` | 마스터 킬스위치 — 위 `place/cancel/amend` 중 하나라도 실제 broker에 도달하려면 이 값도 `true`여야 함 |
 | `accept_fx_consent` | post-prepare FX confirmation 자동 진행 |
+| `update_check.enabled` | 새 버전 알림 (24h 캐시, GitHub Releases API, 실패 시 silent). 기본 `true`. JSON/CSV 출력·non-tty·dev 빌드에서는 자동 skip |
 
 > **두 가지 유형의 토글:**
 > - **경로 게이트** (`place`, `cancel`, `amend`) — broker API 분기가 실제로 다른 세 동작을 각각 독립적으로 켬/끔

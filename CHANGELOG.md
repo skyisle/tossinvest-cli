@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.13] - 2026-05-14
+
+### Added
+- **자동 업데이트 알림** — 명령 실행 후 (성공 시) GitHub Releases 의 latest stable tag 를 조회해 새 버전이 있으면 stderr 에 한 줄 안내. 24h 디스크 캐시 (`<cache>/tossctl/update-check.json`), 네트워크 실패는 silent (다음 실행 때 재시도). config `update_check.enabled` (기본 `true`) 로 끌 수 있음. JSON/CSV 출력, non-tty (cron 등), dev 빌드, prerelease tag 에서는 자동 skip — 자동화 출력은 절대 오염시키지 않음.
+- `internal/updatecheck` 패키지 + 단위 테스트 (semver 비교, 캐시 hit/miss, 네트워크 실패 시 stale fallback).
+
+### Changed
+- `config show` / `doctor` 의 status 출력에 `update_check` 표시 (schema_version 은 그대로 2 — 신규 필드는 additive 라 마이그레이션 불필요).
+
 ## [0.4.12] - 2026-05-14
 
 ### Fixed

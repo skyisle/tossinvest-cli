@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/junghoonkye/tossinvest-cli/internal/permissions"
 	"github.com/junghoonkye/tossinvest-cli/internal/session"
 	"github.com/junghoonkye/tossinvest-cli/internal/trading"
+	"github.com/junghoonkye/tossinvest-cli/internal/updatecheck"
+	"github.com/junghoonkye/tossinvest-cli/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -57,6 +60,9 @@ func newRootCmd() *cobra.Command {
 			sess, _ := store.Load(cmd.Context())
 			writeExpiryWarningIfNeeded(cmd.ErrOrStderr(), sess, cmd.Name(), format, time.Now())
 			return nil
+		},
+		PersistentPostRun: func(cmd *cobra.Command, _ []string) {
+			writeUpdateNoticeIfNeeded(cmd.Context(), cmd.ErrOrStderr(), opts)
 		},
 	}
 
@@ -141,6 +147,61 @@ func writeExpiryWarningIfNeeded(w io.Writer, sess *session.Session, cmdName stri
 		return
 	}
 	fmt.Fprintf(w, "⚠ session expires in ~%s; run `tossctl auth extend` to renew\n", humanizeDuration(remaining))
+}
+
+// writeUpdateNoticeIfNeeded prints a single stderr line when a newer stable
+// tossctl release is available. Every gate is silent — config missing, network
+// flake, non-tty output, JSON/CSV mode, or a dev build all just no-op so the
+// CLI's primary output is never disturbed.
+func writeUpdateNoticeIfNeeded(ctx context.Context, stderr io.Writer, opts *rootOptions) {
+	if version.Version == "dev" {
+		return
+	}
+	format, err := output.ParseFormat(opts.outputFormat)
+	if err != nil || format != output.FormatTable {
+		return
+	}
+	if !isStderrTerminal() {
+		return
+	}
+
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return
+	}
+	if opts.configDir != "" {
+		paths.ConfigDir = opts.configDir
+		paths.ConfigFile = filepath.Join(opts.configDir, "config.json")
+	}
+
+	cfg, err := config.NewService(paths.ConfigFile).Load(ctx)
+	if err != nil || !cfg.UpdateCheck.Enabled {
+		return
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	checker := updatecheck.New(filepath.Join(paths.CacheDir, "update-check.json"))
+	latest := checker.LatestStable(checkCtx)
+	if !updatecheck.IsNewer(latest, version.Version) {
+		return
+	}
+
+	fmt.Fprintf(
+		stderr,
+		"\n✨ tossctl %s available (current %s) — `brew upgrade tossctl-cli` or https://github.com/JungHoonGhae/tossinvest-cli/releases/latest\n   Disable: set update_check.enabled=false in %s\n",
+		latest,
+		version.Version,
+		paths.ConfigFile,
+	)
+}
+
+func isStderrTerminal() bool {
+	fi, err := os.Stderr.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
 func humanizeDuration(d time.Duration) string {

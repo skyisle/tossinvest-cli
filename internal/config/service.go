@@ -66,20 +66,26 @@ func (t Trading) AnyMutationEnabled() bool {
 	return t.Place || t.Cancel || t.Amend
 }
 
+type UpdateCheck struct {
+	Enabled bool `json:"enabled"`
+}
+
 type File struct {
-	Schema        string  `json:"$schema,omitempty"`
-	SchemaVersion int     `json:"schema_version"`
-	Trading       Trading `json:"trading"`
+	Schema        string      `json:"$schema,omitempty"`
+	SchemaVersion int         `json:"schema_version"`
+	Trading       Trading     `json:"trading"`
+	UpdateCheck   UpdateCheck `json:"update_check"`
 }
 
 type Status struct {
-	ConfigFile          string   `json:"config_file"`
-	Exists              bool     `json:"exists"`
-	Schema              string   `json:"$schema,omitempty"`
-	SchemaVersion       int      `json:"schema_version"`
-	SourceSchemaVersion int      `json:"source_schema_version,omitempty"`
-	LegacyFields        []string `json:"legacy_fields,omitempty"`
-	Trading             Trading  `json:"trading"`
+	ConfigFile          string      `json:"config_file"`
+	Exists              bool        `json:"exists"`
+	Schema              string      `json:"$schema,omitempty"`
+	SchemaVersion       int         `json:"schema_version"`
+	SourceSchemaVersion int         `json:"source_schema_version,omitempty"`
+	LegacyFields        []string    `json:"legacy_fields,omitempty"`
+	Trading             Trading     `json:"trading"`
+	UpdateCheck         UpdateCheck `json:"update_check"`
 }
 
 type InitResult struct {
@@ -115,10 +121,15 @@ type rawDangerousAutomation struct {
 	AcceptFXConsent   bool  `json:"accept_fx_consent"`
 }
 
+type rawUpdateCheck struct {
+	Enabled *bool `json:"enabled"`
+}
+
 type rawFile struct {
-	Schema        string     `json:"$schema,omitempty"`
-	SchemaVersion int        `json:"schema_version"`
-	Trading       rawTrading `json:"trading"`
+	Schema        string         `json:"$schema,omitempty"`
+	SchemaVersion int            `json:"schema_version"`
+	Trading       rawTrading     `json:"trading"`
+	UpdateCheck   rawUpdateCheck `json:"update_check"`
 }
 
 func NewService(path string) *Service {
@@ -130,6 +141,7 @@ func DefaultFile() File {
 		Schema:        DefaultSchemaURL,
 		SchemaVersion: SchemaVersion,
 		Trading:       Trading{},
+		UpdateCheck:   UpdateCheck{Enabled: true},
 	}
 }
 
@@ -151,6 +163,7 @@ func (s *Service) Status(context.Context) (Status, error) {
 		SourceSchemaVersion: meta.SourceSchemaVersion,
 		LegacyFields:        meta.LegacyFields,
 		Trading:             cfg.Trading,
+		UpdateCheck:         cfg.UpdateCheck,
 	}, nil
 }
 
@@ -240,6 +253,10 @@ func (s *Service) load() (File, bool, legacyMetadata, error) {
 		cfg.Schema = DefaultSchemaURL
 	}
 	cfg.SchemaVersion = SchemaVersion
+
+	if raw.UpdateCheck.Enabled != nil {
+		cfg.UpdateCheck.Enabled = *raw.UpdateCheck.Enabled
+	}
 
 	return cfg, true, meta, nil
 }

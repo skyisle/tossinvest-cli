@@ -250,6 +250,45 @@ func TestEnabledActionsIncludesKR(t *testing.T) {
 	}
 }
 
+func TestUpdateCheckDefaultsToEnabled(t *testing.T) {
+	// 미존재 config: default file 가 UpdateCheck.Enabled = true 여야 한다.
+	missing := NewService(filepath.Join(t.TempDir(), "config.json"))
+	status, err := missing.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status returned error: %v", err)
+	}
+	if !status.UpdateCheck.Enabled {
+		t.Fatal("expected update_check to default to enabled when config is missing")
+	}
+
+	// update_check 필드 미지정 config: 호환성을 위해 enabled 로 해석되어야 한다.
+	legacyPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(legacyPath, []byte(`{"schema_version":2,"trading":{}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	cfg, err := NewService(legacyPath).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.UpdateCheck.Enabled {
+		t.Fatal("expected update_check to default to enabled when field is omitted")
+	}
+}
+
+func TestUpdateCheckExplicitFalseIsRespected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":2,"trading":{},"update_check":{"enabled":false}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	cfg, err := NewService(path).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.UpdateCheck.Enabled {
+		t.Fatal("expected explicit update_check.enabled=false to be respected")
+	}
+}
+
 func TestInitCreatesDangerousAutomationDefaults(t *testing.T) {
 	service := NewService(filepath.Join(t.TempDir(), "config.json"))
 

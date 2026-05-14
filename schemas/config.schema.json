@@ -66,6 +66,16 @@
         "allow_live_order_actions",
         "dangerous_automation"
       ]
+    },
+    "update_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
     }
   },
   "required": [
