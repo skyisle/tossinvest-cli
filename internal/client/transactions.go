@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	TransactionsMaxRangeDays     = 200
+	// TransactionsMaxRangeDays mirrors Toss's server-side range cap.
+	// Empirically (probed 2026-05-19), `range.to - range.from + 1 <= 365` is
+	// accepted on both KR and US markets; 366+ days returns HTTP 400.
+	TransactionsMaxRangeDays     = 365
 	TransactionsDefaultPageSize  = 50
 	TransactionsDefaultPageLimit = 10
 )

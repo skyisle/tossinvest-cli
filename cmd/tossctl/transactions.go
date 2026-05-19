@@ -17,7 +17,7 @@ func newTransactionsCmd(opts *rootOptions) *cobra.Command {
 		Short: "Read transaction ledger (trades, cash flow, stock in/out)",
 		Long: "Read-only access to Toss Securities' 거래내역 ledger. " +
 			"Covers trades, deposits/withdrawals, dividends, and stock in/out per market. " +
-			"Toss caps a single query at 200 days and paginates.",
+			"Toss caps a single query at 365 days and paginates.",
 	}
 
 	cmd.AddCommand(newTransactionsListCmd(opts))
