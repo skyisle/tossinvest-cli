@@ -177,3 +177,123 @@ type Quote struct {
 	NoticeCount    int       `json:"notice_count,omitempty"`
 	FetchedAt      time.Time `json:"fetched_at"`
 }
+
+// MoneyPair is Toss's two-currency amount envelope used across the profit API.
+// KR-only realized P&L populates only krw; US realized P&L populates both with
+// usd holding the actual cash amount and krw the KRW-equivalent at the trade's
+// FX rate. JSON shape matches the upstream Toss response one-to-one.
+type MoneyPair struct {
+	KRW float64 `json:"krw"`
+	USD float64 `json:"usd"`
+}
+
+// ProfitOverview is the aggregate realized P&L for a date window, broken down
+// by source (sales / lending / dividend / maturity / interest). The window is
+// either the user-provided [from, to] or the Toss "all-time" default (since
+// account opening). Each leaf is a MoneyPair carrying both KRW and USD totals.
+type ProfitOverview struct {
+	RangeType        string         `json:"range_type"`
+	StartDate        string         `json:"start_date"`
+	EndDate          string         `json:"end_date"`
+	TotalAssetAmount MoneyPair      `json:"total_asset_amount"`
+	EarningAmount    MoneyPair      `json:"earning_amount"`
+	Sales            ProfitOverviewLeg  `json:"sales"`
+	Lending          ProfitOverviewLeg  `json:"lending"`
+	Dividend         ProfitOverviewLeg  `json:"dividend"`
+	Maturity         ProfitOverviewLeg  `json:"maturity"`
+	Interest         float64        `json:"interest"`
+}
+
+// ProfitOverviewLeg is one row of the lifetime breakdown (sales/lending/...)
+// in /api/v1/profit/overview. Toss returns nil purchaseAmount for legs without
+// a notional basis (lending/dividend/maturity); we keep it as a pointer so
+// callers can distinguish "no basis" from "zero".
+type ProfitOverviewLeg struct {
+	Amount         MoneyPair  `json:"amount"`
+	EarningRate    MoneyPair  `json:"earning_rate"`
+	PurchaseAmount *MoneyPair `json:"purchase_amount,omitempty"`
+}
+
+// ProfitDailyItem is one row from /api/v1/profit/wts/daily/market — a single
+// (date, symbol) pair's realized P&L with the buy/sell totals and FX deltas
+// that fed into it. baseDate comes back as "26.5.18" from Toss; we normalize
+// to YYYY-MM-DD in BaseDate but keep the raw string in BaseDateRaw for parity
+// with the upstream payload.
+type ProfitDailyItem struct {
+	Key                       string    `json:"key"`
+	MarketType                string    `json:"market_type"`
+	ProductCode               string    `json:"product_code"`
+	ISIN                      string    `json:"isin,omitempty"`
+	Symbol                    string    `json:"symbol,omitempty"`
+	ProductName               string    `json:"product_name"`
+	BaseDate                  string    `json:"base_date"`
+	BaseDateRaw               string    `json:"base_date_raw,omitempty"`
+	Quantity                  float64   `json:"quantity"`
+	ProfitLossAmount          MoneyPair `json:"profit_loss_amount"`
+	ProfitRate                float64   `json:"profit_rate"`
+	SellAmount                MoneyPair `json:"sell_amount"`
+	BuyAmount                 MoneyPair `json:"buy_amount"`
+	Commission                MoneyPair `json:"commission"`
+	Tax                       MoneyPair `json:"tax"`
+	AverageSellPrice          MoneyPair `json:"average_sell_price"`
+	AverageBuyPrice           MoneyPair `json:"average_buy_price"`
+	AverageProfitLossPrice    MoneyPair `json:"average_profit_loss_price"`
+	BuyExchangeRate           *float64  `json:"buy_exchange_rate,omitempty"`
+	SellExchangeRate          *float64  `json:"sell_exchange_rate,omitempty"`
+	ExchangeProfitLossAmount  *float64  `json:"exchange_profit_loss_amount,omitempty"`
+	BuyTax                    MoneyPair `json:"buy_tax"`
+	SellTax                   MoneyPair `json:"sell_tax"`
+	BuyCommission             MoneyPair `json:"buy_commission"`
+	SellCommission            MoneyPair `json:"sell_commission"`
+}
+
+// ProfitDailyPage wraps one paginated response from
+// /api/v1/profit/wts/daily/market. HasNext mirrors the server-side flag; when
+// true callers should request page CurrentPage+1 with the same body.
+type ProfitDailyPage struct {
+	Items       []ProfitDailyItem `json:"items"`
+	CurrentPage int               `json:"current_page"`
+	PageSize    int               `json:"page_size"`
+	HasNext     bool              `json:"has_next"`
+}
+
+// ProfitGroupItem is one row from /api/v2/profit/group/market — a single
+// symbol's realized P&L across the requested window for one market (kr|us).
+// Commission and Tax are flattened to a MoneyPair here even though Toss
+// returns a nested {buyAmount, sellAmount, totalAmount, krw, usd}; only the
+// total is actionable for the CLI.
+type ProfitGroupItem struct {
+	Key            string    `json:"key"`
+	ProductCode    string    `json:"product_code"`
+	ISIN           string    `json:"isin,omitempty"`
+	Symbol         string    `json:"symbol,omitempty"`
+	Name           string    `json:"name"`
+	LogoImageURL   string    `json:"logo_image_url,omitempty"`
+	ProfitType     string    `json:"profit_type"`
+	EarningAmount  MoneyPair `json:"earning_amount"`
+	EarningRate    MoneyPair `json:"earning_rate"`
+	PurchaseAmount MoneyPair `json:"purchase_amount"`
+	Commission     MoneyPair `json:"commission"`
+	Tax            MoneyPair `json:"tax"`
+	Quantity       float64   `json:"quantity"`
+}
+
+// ProfitGroupPage is one paginated response from /api/v2/profit/group/market.
+// IsLast is the server's authoritative end-of-stream signal; NextPage echoes
+// the {page,size} the client should send for the next request.
+type ProfitGroupPage struct {
+	Market             string            `json:"market"`
+	ProfitType         string            `json:"profit_type"`
+	Currency           string            `json:"currency"`
+	TotalEarningAmount MoneyPair         `json:"total_earning_amount"`
+	TotalEarningRate   MoneyPair         `json:"total_earning_rate"`
+	Items              []ProfitGroupItem `json:"items"`
+	IsLast             bool              `json:"is_last"`
+	NextPage           *ProfitPageCursor `json:"next_page,omitempty"`
+}
+
+// ProfitPageCursor is the {page,size} shape Toss echoes back in nextPage.
+type ProfitPageCursor struct {
+	Page int `json:"page"`
+	Size int `json:"size"`
+}
