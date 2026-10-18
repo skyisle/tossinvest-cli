@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	TransactionsMaxRangeDays     = 200
+	// TransactionsMaxRangeDays mirrors Toss's server-side range cap. Probed
+	// 2026-05-19 on both KR and US: `range.to - range.from + 1 <= 365` is
+	// accepted; 366+ returns HTTP 400.
+	TransactionsMaxRangeDays     = 365
 	TransactionsDefaultPageSize  = 50
 	TransactionsDefaultPageLimit = 10
 )
@@ -73,16 +76,37 @@ func normalizeTransactionRange(from, to time.Time) (time.Time, time.Time, error)
 type transactionsEnvelope struct {
 	Result struct {
 		PagingParam struct {
-			Number  int             `json:"number"`
-			Size    int             `json:"size"`
-			Key     string          `json:"key"`
-			Filters json.RawMessage `json:"filters"`
-			Type    json.RawMessage `json:"type"`
+			Number     int             `json:"number"`
+			Size       int             `json:"size"`
+			Key        string          `json:"key"`
+			Filters    json.RawMessage `json:"filters"`
+			Type       json.RawMessage `json:"type"`
+			SettledKey json.RawMessage `json:"settledKey"`
 		} `json:"pagingParam"`
 		Body     []json.RawMessage `json:"body"`
 		LastPage bool              `json:"lastPage"`
 		AllAsset bool              `json:"allAsset"`
 	} `json:"result"`
+}
+
+// transactionCursor carries the follow-up paging params the transactions
+// endpoint expects on every page after the first. Both KR and US use the same
+// pagingParam shape but with different cursor fields and `allAsset` polarity
+// (verified against the live web UI on 2026-05-27):
+//
+//	market   cursor field          number   allAsset
+//	-----    ----------------      ------   --------
+//	kr       pagingParam.key       1        true     (e.g. key="2026-04-27::2")
+//	us       pagingParam.settledKey 2       false    (e.g. settledKey=3196198223)
+//
+// We populate whichever fields the server gave us; sending both is harmless on
+// either market but only one is meaningful per request.
+type transactionCursor struct {
+	key        string // KR cursor (date::type form)
+	settledKey string // US cursor (numeric transaction id)
+	kind       string // server's `pagingParam.type`, echoed back as `type`
+	number     int    // server's `pagingParam.number`, echoed back as `number`
+	allAsset   bool   // server-expected `allAsset` flag (true on KR, false on US)
 }
 
 type transactionOverviewEnvelope struct {
@@ -110,20 +134,31 @@ type withdrawableBottomSheetEntry struct {
 // filter accepts the same strings as parseTransactionFilter ("all"/"trade"/...
 // or the numeric form). size<=0 uses TransactionsDefaultPageSize.
 func (c *Client) ListTransactions(ctx context.Context, market string, from, to time.Time, filter string, size, number int) (domain.TransactionPage, error) {
+	page, _, err := c.listTransactionsPage(ctx, market, from, to, filter, size, number, nil)
+	return page, err
+}
+
+// listTransactionsPage is the cursor-aware single-page fetch. When `cursor` is
+// non-nil the request includes the follow-up paging params Toss expects for
+// the cursor's market (KR: key/type/number=1/allAsset=true; US: settledKey/
+// type/number=2/allAsset=false). The returned *transactionCursor is non-nil
+// when the server reports more data, so callers can drive a paging loop
+// without parsing the envelope themselves.
+func (c *Client) listTransactionsPage(ctx context.Context, market string, from, to time.Time, filter string, size, number int, cursor *transactionCursor) (domain.TransactionPage, *transactionCursor, error) {
 	if err := c.requireSession(); err != nil {
-		return domain.TransactionPage{}, err
+		return domain.TransactionPage{}, nil, err
 	}
 	market, err := normalizeTransactionMarket(market)
 	if err != nil {
-		return domain.TransactionPage{}, err
+		return domain.TransactionPage{}, nil, err
 	}
 	from, to, err = normalizeTransactionRange(from, to)
 	if err != nil {
-		return domain.TransactionPage{}, err
+		return domain.TransactionPage{}, nil, err
 	}
 	filterVal, err := parseTransactionFilter(filter)
 	if err != nil {
-		return domain.TransactionPage{}, err
+		return domain.TransactionPage{}, nil, err
 	}
 	if size <= 0 {
 		size = TransactionsDefaultPageSize
@@ -137,7 +172,28 @@ func (c *Client) ListTransactions(ctx context.Context, market string, from, to t
 	params.Set("filters", strconv.Itoa(int(filterVal)))
 	params.Set("range.from", from.Format("2006-01-02"))
 	params.Set("range.to", to.Format("2006-01-02"))
-	if number > 0 {
+	if cursor != nil {
+		// Cursor params come straight from the previous response's pagingParam.
+		// `number` from the cursor wins over the caller-supplied value because
+		// the server's own echo is the only reliable next-page hint.
+		if cursor.key != "" {
+			params.Set("key", cursor.key)
+		}
+		if cursor.settledKey != "" {
+			params.Set("settledKey", cursor.settledKey)
+		}
+		if cursor.kind != "" {
+			params.Set("type", cursor.kind)
+		}
+		if cursor.allAsset {
+			params.Set("allAsset", "true")
+		} else {
+			params.Set("allAsset", "false")
+		}
+		if cursor.number > 0 {
+			params.Set("number", strconv.Itoa(cursor.number))
+		}
+	} else if number > 0 {
 		params.Set("number", strconv.Itoa(number))
 	}
 
@@ -148,11 +204,12 @@ func (c *Client) ListTransactions(ctx context.Context, market string, from, to t
 
 	var envelope transactionsEnvelope
 	if err := c.getJSON(ctx, endpoint, &envelope); err != nil {
-		return domain.TransactionPage{}, err
+		return domain.TransactionPage{}, nil, err
 	}
 
-	// Toss's ledger ignores range.from and always returns up to `size` entries counting
-	// backward from range.to. Filter client-side so callers see only the requested window.
+	// Toss's ledger ignores range.from for filtering and instead emits a cursor
+	// (key on KR, settledKey on US). Filter client-side so callers see only the
+	// requested window.
 	fromDay, toDayExclusive := transactionRangeBounds(from, to)
 	page := domain.TransactionPage{
 		Market:   market,
@@ -166,6 +223,7 @@ func (c *Client) ListTransactions(ctx context.Context, market string, from, to t
 		}
 		page.Items = append(page.Items, tx)
 	}
+	nextCursor := nextTransactionCursor(market, envelope)
 	if !envelope.Result.LastPage {
 		page.Next = &domain.PagingParam{
 			Number:  envelope.Result.PagingParam.Number + 1,
@@ -175,21 +233,52 @@ func (c *Client) ListTransactions(ctx context.Context, market string, from, to t
 			Type:    rawJSONScalarToString(envelope.Result.PagingParam.Type),
 		}
 	}
-	return page, nil
+	return page, nextCursor, nil
 }
 
-// ListAllTransactions pages through by narrowing range.to toward from.
+// nextTransactionCursor pulls the next-page cursor out of a transactions
+// envelope, selecting the field the given market uses (`key` on KR,
+// `settledKey` on US). Returns nil when the server reports lastPage=true or
+// when the chosen field is missing/empty, signalling end of stream. JSON
+// RawMessage parsing accepts either a bare number or a quoted string — Toss
+// has shipped both shapes historically.
+func nextTransactionCursor(market string, envelope transactionsEnvelope) *transactionCursor {
+	if envelope.Result.LastPage {
+		return nil
+	}
+	kind := rawJSONScalarToString(envelope.Result.PagingParam.Type)
+	number := envelope.Result.PagingParam.Number
+	switch market {
+	case "us":
+		settledKey := rawJSONScalarToString(envelope.Result.PagingParam.SettledKey)
+		if settledKey == "" {
+			return nil
+		}
+		return &transactionCursor{settledKey: settledKey, kind: kind, number: number, allAsset: false}
+	case "kr":
+		if envelope.Result.PagingParam.Key == "" {
+			return nil
+		}
+		return &transactionCursor{key: envelope.Result.PagingParam.Key, kind: kind, number: number, allAsset: true}
+	}
+	return nil
+}
+
+// ListAllTransactions returns the full transaction window the server will expose
+// within `[from, to]`. pageLimit<=0 defaults to TransactionsDefaultPageLimit to
+// avoid runaway loops.
 //
-// Toss's transactions endpoint ignores number/key/cursor and only honours the
-// range.to bound. To fetch older items we re-request with range.to set to the
-// oldest date seen in the previous page, then deduplicate by SortKey (since the
-// boundary date repeats across pages). pageLimit<=0 defaults to
-// TransactionsDefaultPageLimit to avoid runaway loops.
+// The two markets paginate differently:
+//   - KR: server honours range.to and emits no settledKey, so the client narrows
+//     range.to toward `from` between pages and dedupes by SortKey.
+//   - US: server ignores range.to but returns `pagingParam.settledKey` plus the
+//     paging type/number. The client echoes those back on the next request to
+//     walk older entries until lastPage=true (verified against the live
+//     ledger via the Toss web UI on 2026-05-27).
 func (c *Client) ListAllTransactions(ctx context.Context, market string, from, to time.Time, filter string, size, pageLimit int) ([]domain.Transaction, error) {
 	if pageLimit <= 0 {
 		pageLimit = TransactionsDefaultPageLimit
 	}
-	// Normalize once up front so loop comparisons use the canonical range.
 	market, err := normalizeTransactionMarket(market)
 	if err != nil {
 		return nil, err
@@ -198,19 +287,26 @@ func (c *Client) ListAllTransactions(ctx context.Context, market string, from, t
 	if err != nil {
 		return nil, err
 	}
+	return c.listAllTransactionsByCursor(ctx, market, from, to, filter, size, pageLimit)
+}
+
+// listAllTransactionsByCursor drives the paging loop for both markets. The
+// first request goes out without a cursor; every subsequent request reuses the
+// `pagingParam` cursor the server returned for the previous page. The server
+// ignores range.from for filtering, so we stop on lastPage=true, a missing
+// cursor, or two consecutive empty pages (a sign the cursor has walked past
+// the caller's window).
+func (c *Client) listAllTransactionsByCursor(ctx context.Context, market string, from, to time.Time, filter string, size, pageLimit int) ([]domain.Transaction, error) {
 	seen := make(map[string]struct{})
 	all := make([]domain.Transaction, 0)
-	currentTo := to
+	emptyStreak := 0
+	var cursor *transactionCursor
 	for i := 0; i < pageLimit; i++ {
-		page, err := c.ListTransactions(ctx, market, from, currentTo, filter, size, 0)
+		page, next, err := c.listTransactionsPage(ctx, market, from, to, filter, size, 0, cursor)
 		if err != nil {
 			return nil, err
 		}
-		// ListTransactions already filters by the range, so we watch the
-		// earliest date here to decide when to stop paging.
 		newThisPage := 0
-		var earliest time.Time
-		var earliestSet bool
 		for _, tx := range page.Items {
 			if tx.SortKey != "" {
 				if _, dup := seen[tx.SortKey]; dup {
@@ -220,29 +316,19 @@ func (c *Client) ListAllTransactions(ctx context.Context, market string, from, t
 			}
 			all = append(all, tx)
 			newThisPage++
-			if d := extractTransactionDate(tx); !d.IsZero() {
-				if !earliestSet || d.Before(earliest) {
-					earliest = d
-					earliestSet = true
-				}
+		}
+		if page.LastPage || next == nil {
+			return all, nil
+		}
+		if newThisPage == 0 {
+			emptyStreak++
+			if emptyStreak >= 2 {
+				return all, nil
 			}
+		} else {
+			emptyStreak = 0
 		}
-		if page.LastPage {
-			return all, nil
-		}
-		if newThisPage == 0 || !earliestSet {
-			return all, nil
-		}
-		// snap earliest to midnight so range.to has day granularity
-		earliestDay := time.Date(earliest.Year(), earliest.Month(), earliest.Day(), 0, 0, 0, 0, earliest.Location())
-		if !earliestDay.Before(currentTo) {
-			// would not advance: break to avoid infinite loop when >size entries share one day
-			return all, nil
-		}
-		if earliestDay.Before(from) {
-			return all, nil
-		}
-		currentTo = earliestDay
+		cursor = next
 	}
 	return all, nil
 }

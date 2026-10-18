@@ -17,7 +17,7 @@
   - `auth extend` — 토스 서버 측 ~7일 활성 timer를 폰 푸시 승인 한 번으로 연장 (1년 SESSION 쿠키와 별개의 만료 시계). 24h 미만 남았을 때 모든 명령에서 stderr 한 줄 경고
 - 계좌, 포트폴리오, 미체결 주문, 관심종목, 시세 조회
 - `orders completed`, `order show <id>` 기반 주문 상태 조회
-- 거래내역 ledger: `transactions list/overview` — 매매/입출금/배당/주식입출고 + 현금 overview (KR/US, table/JSON/CSV, 200일 캡)
+- 거래내역 ledger: `transactions list/overview` — 매매/입출금/배당/주식입출고 + 현금 overview (KR/US, table/JSON/CSV, 365일 캡; `--all`은 KR은 `range.to` 좁히기, US는 `pagingParam.settledKey` 커서로 페이징)
 - 실시간 푸시: `push listen` — 토스 SSE 채널(`sse-message.tossinvest.com`) 구독으로 주문/가격/보유종목 변경 알림을 JSONL 스트림으로 출력 (이벤트 분류는 [`docs/reverse-engineering/push-events.md`](reverse-engineering/push-events.md))
 - 거래 베타
   - `US/KR buy/sell limit` + `US fractional (market)`

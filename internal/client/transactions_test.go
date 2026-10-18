@@ -163,25 +163,40 @@ func TestListTransactionsRejectsInvalidMarket(t *testing.T) {
 	}
 }
 
-func TestListAllTransactionsPagesUntilLastPage(t *testing.T) {
+func TestListAllTransactionsKRFollowsKeyCursor(t *testing.T) {
 	t.Parallel()
 
-	var calls int
+	// KR pagination contract (verified against the live web UI on 2026-05-27):
+	// `range.to` stays constant; the client carries `pagingParam.key` forward as
+	// `key=<date>::<type>` plus `type`, `number=1`, and `allAsset=true`.
+	type call struct {
+		rangeTo  string
+		key      string
+		kind     string
+		number   string
+		allAsset string
+	}
+	var calls []call
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		to := r.URL.Query().Get("range.to")
-		switch to {
-		case "2026-04-19":
-			// First page: oldest item on 2026-04-01 — client should narrow range.to to 2026-04-01 next.
-			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":0,"size":2},"body":[
+		q := r.URL.Query()
+		calls = append(calls, call{
+			rangeTo:  q.Get("range.to"),
+			key:      q.Get("key"),
+			kind:     q.Get("type"),
+			number:   q.Get("number"),
+			allAsset: q.Get("allAsset"),
+		})
+		switch q.Get("key") {
+		case "":
+			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":1,"size":2,"key":"2026-04-01::1","type":"2"},"body":[
 				{"type":"1","transactionType":{"code":"5","displayName":"매수"},"stockCode":"A","stockName":"A Inc","amount":100,"adjustedAmount":-100,"date":"2026-04-01","compositeKey":{"orderDate":"2026-04-01","tradeType":"buy","id":111}}
 			],"lastPage":false}}`))
-		case "2026-04-01":
-			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":0,"size":2},"body":[
+		case "2026-04-01::1":
+			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":1,"size":2,"key":"","type":"2"},"body":[
 				{"type":"2","transactionType":{"code":"1","displayName":"입금"},"stockCode":"B","stockName":"B Inc","amount":50,"adjustedAmount":50,"dateTime":"2026-03-15 10:00:00.000","compositeKey":{"date":"2026-03-15","no":2}}
 			],"lastPage":true}}`))
 		default:
-			t.Fatalf("unexpected range.to=%s (call #%d)", to, calls)
+			t.Fatalf("unexpected key=%q (call %d)", q.Get("key"), len(calls))
 		}
 	}))
 	defer server.Close()
@@ -203,14 +218,133 @@ func TestListAllTransactionsPagesUntilLastPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAllTransactions error: %v", err)
 	}
-	if calls != 2 {
-		t.Fatalf("expected 2 page fetches, got %d", calls)
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 page fetches, got %d: %+v", len(calls), calls)
+	}
+	// range.to must stay constant — narrow-range-to is gone.
+	for i, c := range calls {
+		if c.rangeTo != "2026-04-19" {
+			t.Fatalf("call %d: range.to=%q (must stay constant across paging)", i, c.rangeTo)
+		}
+	}
+	if calls[0].key != "" || calls[0].number != "" {
+		t.Fatalf("first call must NOT carry cursor: got %+v", calls[0])
+	}
+	if calls[1].key != "2026-04-01::1" || calls[1].kind != "2" || calls[1].number != "1" || calls[1].allAsset != "true" {
+		t.Fatalf("second call must echo KR pagingParam (key/type/number=1/allAsset=true): got %+v", calls[1])
 	}
 	if len(items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(items))
 	}
 	if items[0].Category != "trade" || items[1].Category != "cash" {
 		t.Fatalf("unexpected categories: %v / %v", items[0].Category, items[1].Category)
+	}
+}
+
+func TestListAllTransactionsUSFollowsSettledKeyCursor(t *testing.T) {
+	t.Parallel()
+
+	// The US ledger ignores range.to but returns `pagingParam.settledKey` plus
+	// `type` and `number` on every page after the first. The client must echo
+	// those back verbatim on the follow-up request — this test pins that wire
+	// contract by responding with two pages chained by a settledKey and
+	// asserting the second request carries it.
+	type call struct {
+		settledKey string
+		kind       string
+		number     string
+		allAsset   string
+	}
+	var calls []call
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		calls = append(calls, call{
+			settledKey: q.Get("settledKey"),
+			kind:       q.Get("type"),
+			number:     q.Get("number"),
+			allAsset:   q.Get("allAsset"),
+		})
+		switch q.Get("settledKey") {
+		case "":
+			// First page: emit a settledKey so the client paginates.
+			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":2,"size":50,"key":"","type":2,"settledKey":3196198223},"body":[
+				{"type":"1","transactionType":{"code":"5","displayName":"매수"},"stockCode":"A","amount":100,"adjustedAmount":-100,"settlementDate":"2026-05-29","compositeKey":{"orderDate":"2026-05-27","tradeType":"buy","id":111}}
+			],"lastPage":false}}`))
+		case "3196198223":
+			// Second page: include a different item and signal lastPage=true.
+			_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":2,"size":50,"key":"","type":2,"settledKey":3141368013},"body":[
+				{"type":"2","transactionType":{"code":"1","displayName":"입금"},"amount":1000,"adjustedAmount":1000,"dateTime":"2026-04-10 09:00:00.000","compositeKey":{"date":"2026-04-10","no":222}}
+			],"lastPage":true}}`))
+		default:
+			t.Fatalf("unexpected settledKey=%q", q.Get("settledKey"))
+		}
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		HTTPClient:  server.Client(),
+		APIBaseURL:  server.URL,
+		InfoBaseURL: server.URL,
+		CertBaseURL: server.URL,
+		Session:     &session.Session{Cookies: map[string]string{"SESSION": "x"}},
+	})
+
+	items, err := client.ListAllTransactions(
+		context.Background(), "us",
+		time.Date(2026, 1, 1, 0, 0, 0, 0, KoreaLocation),
+		time.Date(2026, 5, 27, 0, 0, 0, 0, KoreaLocation),
+		"all", 0, 5,
+	)
+	if err != nil {
+		t.Fatalf("ListAllTransactions error: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 paginated calls, got %d: %+v", len(calls), calls)
+	}
+	if calls[0].settledKey != "" || calls[0].number != "" {
+		t.Fatalf("first call must NOT carry cursor: got %+v", calls[0])
+	}
+	if calls[1].settledKey != "3196198223" || calls[1].kind != "2" || calls[1].number != "2" || calls[1].allAsset != "false" {
+		t.Fatalf("second call must echo pagingParam: got %+v", calls[1])
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items merged across pages, got %d", len(items))
+	}
+}
+
+func TestListAllTransactionsUSStopsWhenServerReportsLastPage(t *testing.T) {
+	t.Parallel()
+
+	// A single response with lastPage=true must end the paging loop — no
+	// follow-up request even if settledKey is non-empty. (Toss occasionally
+	// returns both, presumably to let the UI prefetch.)
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		_, _ = w.Write([]byte(`{"result":{"pagingParam":{"number":2,"size":50,"type":2,"settledKey":999},"body":[
+			{"type":"1","transactionType":{"code":"5","displayName":"매수"},"stockCode":"A","amount":1,"adjustedAmount":-1,"settlementDate":"2026-05-29","compositeKey":{"orderDate":"2026-05-27","tradeType":"buy","id":1}}
+		],"lastPage":true}}`))
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		HTTPClient:  server.Client(),
+		APIBaseURL:  server.URL,
+		InfoBaseURL: server.URL,
+		CertBaseURL: server.URL,
+		Session:     &session.Session{Cookies: map[string]string{"SESSION": "x"}},
+	})
+
+	if _, err := client.ListAllTransactions(
+		context.Background(), "us",
+		time.Date(2026, 1, 1, 0, 0, 0, 0, KoreaLocation),
+		time.Date(2026, 5, 27, 0, 0, 0, 0, KoreaLocation),
+		"all", 0, 5,
+	); err != nil {
+		t.Fatalf("ListAllTransactions error: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call (lastPage=true ends loop), got %d", calls)
 	}
 }
 
